@@ -7,7 +7,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { sendEmail } from '../utils/sendEmail.js';
 import { isDbReady } from '../config/db.js';
-import { isNonEmptyString, isValidEmail, normalizePhone, isPositiveNumber } from '../utils/validators.js';
+import { isNonEmptyString, isValidEmail, normalizePhone, isPositiveNumber, isValidName, isStrongPassword } from '../utils/validators.js';
 import { issueVerificationEmail } from '../utils/verificationEmail.js';
 import { issuePhoneOtp } from '../utils/phoneVerification.js';
 import { isWhatsAppConfigured } from '../utils/whatsapp.js';
@@ -33,8 +33,8 @@ export const registerAdmin = async (req, res) => {
 
     const { fullName, email, accessCode, password } = req.body;
 
-    if (!isNonEmptyString(fullName) || !isValidEmail(email) || !isNonEmptyString(accessCode) || !isNonEmptyString(password)) {
-      return res.status(400).json({ message: 'All fields are required and must be valid' });
+    if (!isValidName(fullName) || !isValidEmail(email) || !isNonEmptyString(accessCode) || !isStrongPassword(password)) {
+      return res.status(400).json({ message: 'All fields are required and must be valid. Password must be strong (8+ chars, uppercase, lowercase, number, special char).' });
     }
 
     const expectedAccessCode = process.env.ADMIN_ACCESS_CODE;
@@ -99,9 +99,9 @@ export const registerFarmer = async (req, res) => {
     const { fullName, phone, email, province, district, farmArea, password } = req.body;
 
     const normalizedPhone = normalizePhone(phone);
-    if (!isNonEmptyString(fullName) || !normalizedPhone || !isValidEmail(email) || !isNonEmptyString(province) ||
-      !isNonEmptyString(district) || !isPositiveNumber(farmArea) || !isNonEmptyString(password)) {
-      return res.status(400).json({ message: 'All fields are required and must be valid (phone must be a valid Pakistani mobile number)' });
+    if (!isValidName(fullName) || !normalizedPhone || !isValidEmail(email) || !isNonEmptyString(province) ||
+      !isNonEmptyString(district) || !isPositiveNumber(farmArea) || !isStrongPassword(password)) {
+      return res.status(400).json({ message: 'All fields are required. Password must be strong (8+ chars, uppercase, lowercase, number, special char).' });
     }
 
     const existingByPhone = await User.findOne({ phone: normalizedPhone });
@@ -522,3 +522,4 @@ export const devVerifyPhone = async (req, res) => {
     res.status(500).json({ message: 'Server error, please try again later' });
   }
 };
+

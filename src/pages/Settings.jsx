@@ -178,7 +178,7 @@ const Settings = () => {
             <span className="input-icon-left" aria-hidden="true"><Mail size={18} /></span>
             <input
               id="settings-email-input" type="email" name="email" placeholder={t.placeholderEmail}
-              className="form-input" value={profile.email || ''} onChange={handleProfileChange} required
+              className="form-input" value={profile.email || ''} disabled readOnly title="Email cannot be changed after registration"
             />
           </div>
 

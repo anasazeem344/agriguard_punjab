@@ -4,7 +4,9 @@ const userSchema = new mongoose.Schema({
   fullName: {
     type: String,
     required: [true, 'Full name is required'],
-    trim: true
+    trim: true,
+    minlength: [2, 'Full name must be at least 2 characters'],
+    maxlength: [50, 'Full name cannot exceed 50 characters']
   },
   email: {
     type: String,
@@ -12,18 +14,21 @@ const userSchema = new mongoose.Schema({
     sparse: true, // Allows multiple null/undefined values for farmers who don't register with email
     lowercase: true,
     trim: true,
+    maxlength: [100, 'Email cannot exceed 100 characters'],
     match: [/\S+@\S+\.\S+/, 'Please enter a valid email address']
   },
   phone: {
     type: String,
     unique: true,
     sparse: true, // Allows multiple null/undefined values for admins who don't register with phone
-    trim: true
+    trim: true,
+    maxlength: [20, 'Phone number cannot exceed 20 characters']
   },
   password: {
     type: String,
     required: [true, 'Password is required'],
-    minlength: [8, 'Password must be at least 8 characters']
+    minlength: [8, 'Password must be at least 8 characters'],
+    maxlength: [128, 'Password cannot exceed 128 characters']
   },
   role: {
     type: String,

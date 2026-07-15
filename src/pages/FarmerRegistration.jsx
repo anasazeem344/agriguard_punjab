@@ -36,24 +36,37 @@ const FarmerRegistration = () => {
   const validate = () => {
     const newErrors = {};
     if (!farmerData.fullName.trim()) newErrors.fullName = t.errorRequired;
+    else if (farmerData.fullName.length < 2 || farmerData.fullName.length > 50) newErrors.fullName = lang === 'Urdu' ? 'نام 2 سے 50 حروف کے درمیان ہونا چاہیے۔' : 'Name must be between 2 and 50 characters';
+    
     if (!farmerData.phone.trim()) {
       newErrors.phone = t.errorRequired;
     } else if (!isValidPhoneFormat(farmerData.phone)) {
       newErrors.phone = t.errorPhone;
     }
+    
     if (!farmerData.email.trim()) {
       newErrors.email = t.errorRequired;
     } else if (!isValidEmailFormat(farmerData.email)) {
       newErrors.email = t.errorEmail;
+    } else if (farmerData.email.length > 100) {
+      newErrors.email = lang === 'Urdu' ? 'ای میل 100 حروف سے کم ہونی چاہیے۔' : 'Email must be under 100 characters';
     }
+    
     if (!farmerData.province.trim()) newErrors.province = t.errorRequired;
     if (!farmerData.district.trim()) newErrors.district = t.errorRequired;
-    if (!farmerData.farmArea.trim()) newErrors.farmArea = t.errorRequired;
+    
+    if (!farmerData.farmArea.trim()) {
+      newErrors.farmArea = t.errorRequired;
+    } else if (Number(farmerData.farmArea) < 0.1 || Number(farmerData.farmArea) > 100000) {
+      newErrors.farmArea = lang === 'Urdu' ? 'رقبہ 0.1 سے 100,000 ایکڑ کے درمیان ہونا چاہیے۔' : 'Area must be between 0.1 and 100,000 acres';
+    }
+    
     if (!farmerData.password) {
       newErrors.password = t.errorRequired;
-    } else if (farmerData.password.length < 8) {
-      newErrors.password = t.errorLength;
+    } else if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,128}$/.test(farmerData.password)) {
+      newErrors.password = lang === 'Urdu' ? 'پاس ورڈ کم از کم 8 حروف، ایک بڑا حرف، ایک چھوٹا حرف، ایک نمبر اور ایک خاص علامت پر مشتمل ہونا چاہیے۔' : 'Password must be strong (8+ chars, uppercase, lowercase, number, special char)';
     }
+    
     if (!farmerData.confirmPassword) {
       newErrors.confirmPassword = t.errorRequired;
     } else if (farmerData.password !== farmerData.confirmPassword) {
@@ -113,7 +126,7 @@ const FarmerRegistration = () => {
             <input
               id="farmer-fullname-input" type="text" name="fullName" placeholder={t.placeholderName}
               className={`form-input ${errors.fullName ? 'has-error' : ''}`}
-              value={farmerData.fullName} onChange={handleChange} required
+              value={farmerData.fullName} onChange={handleChange} required minLength="2" maxLength="50"
               aria-required="true" aria-invalid={errors.fullName ? 'true' : 'false'}
             />
             {errors.fullName && <p className="error-message" role="alert">{errors.fullName}</p>}
@@ -124,7 +137,7 @@ const FarmerRegistration = () => {
             <input
               id="farmer-phone-input" type="tel" name="phone" placeholder={t.placeholderPhone}
               className={`form-input ${errors.phone ? 'has-error' : ''}`}
-              value={farmerData.phone} onChange={handleChange} required
+              value={farmerData.phone} onChange={handleChange} required maxLength="20"
               aria-required="true" aria-invalid={errors.phone ? 'true' : 'false'}
             />
             {errors.phone && <p className="error-message" role="alert">{errors.phone}</p>}
@@ -135,7 +148,7 @@ const FarmerRegistration = () => {
             <input
               id="farmer-email-input" type="email" name="email" placeholder={t.placeholderEmail}
               className={`form-input ${errors.email ? 'has-error' : ''}`}
-              value={farmerData.email} onChange={handleChange} required
+              value={farmerData.email} onChange={handleChange} required maxLength="100"
               aria-required="true" aria-invalid={errors.email ? 'true' : 'false'}
             />
             {errors.email && <p className="error-message" role="alert">{errors.email}</p>}
@@ -187,7 +200,7 @@ const FarmerRegistration = () => {
             <input
               id="farmer-area-input" type="number" name="farmArea" placeholder={t.placeholderArea}
               className={`form-input ${errors.farmArea ? 'has-error' : ''}`}
-              value={farmerData.farmArea} onChange={handleChange} required
+              value={farmerData.farmArea} onChange={handleChange} required min="0.1" max="100000" step="any"
               aria-required="true" aria-invalid={errors.farmArea ? 'true' : 'false'}
             />
             {errors.farmArea && <p className="error-message" role="alert">{errors.farmArea}</p>}
@@ -198,7 +211,7 @@ const FarmerRegistration = () => {
             <input
               id="farmer-password-input" type={showPassword ? 'text' : 'password'} name="password" placeholder={t.placeholderPassword}
               className={`form-input ${errors.password ? 'has-error' : ''}`}
-              value={farmerData.password} onChange={handleChange} required
+              value={farmerData.password} onChange={handleChange} required minLength="8" maxLength="128"
               aria-required="true" aria-invalid={errors.password ? 'true' : 'false'}
             />
             <button id="farmer-password-toggle" type="button" className="input-icon-right" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Hide password' : 'Show password'}>
@@ -212,7 +225,7 @@ const FarmerRegistration = () => {
             <input
               id="farmer-confirm-input" type={showConfirmPassword ? 'text' : 'password'} name="confirmPassword" placeholder={t.placeholderConfirm}
               className={`form-input ${errors.confirmPassword ? 'has-error' : ''}`}
-              value={farmerData.confirmPassword} onChange={handleChange} required
+              value={farmerData.confirmPassword} onChange={handleChange} required minLength="8" maxLength="128"
               aria-required="true" aria-invalid={errors.confirmPassword ? 'true' : 'false'}
             />
             <button id="farmer-confirm-toggle" type="button" className="input-icon-right" onClick={() => setShowConfirmPassword(!showConfirmPassword)} aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}>

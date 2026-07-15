@@ -10,7 +10,8 @@ const adminProfileSchema = new mongoose.Schema({
   accessCode: {
     type: String,
     required: [true, 'Access code is required'],
-    trim: true
+    trim: true,
+    maxlength: [50, 'Access code cannot exceed 50 characters']
   }
 });
 

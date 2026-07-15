@@ -27,17 +27,28 @@ const AdminRegistration = () => {
   const validate = () => {
     const newErrors = {};
     if (!adminData.fullName.trim()) newErrors.fullName = t.errorRequired;
+    else if (adminData.fullName.length < 2 || adminData.fullName.length > 50) newErrors.fullName = lang === 'Urdu' ? 'نام 2 سے 50 حروف کے درمیان ہونا چاہیے۔' : 'Name must be between 2 and 50 characters';
+    
     if (!adminData.email.trim()) {
       newErrors.email = t.errorRequired;
     } else if (!/\S+@\S+\.\S+/.test(adminData.email)) {
       newErrors.email = t.errorEmail;
+    } else if (adminData.email.length > 100) {
+      newErrors.email = lang === 'Urdu' ? 'ای میل 100 حروف سے کم ہونی چاہیے۔' : 'Email must be under 100 characters';
     }
-    if (!adminData.accessCode.trim()) newErrors.accessCode = t.errorRequired;
+    
+    if (!adminData.accessCode.trim()) {
+      newErrors.accessCode = t.errorRequired;
+    } else if (adminData.accessCode.length > 50) {
+      newErrors.accessCode = lang === 'Urdu' ? 'ایکسس کوڈ 50 حروف سے زیادہ نہیں ہو سکتا۔' : 'Access code cannot exceed 50 characters';
+    }
+    
     if (!adminData.password) {
       newErrors.password = t.errorRequired;
-    } else if (adminData.password.length < 8) {
-      newErrors.password = t.errorLength;
+    } else if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,128}$/.test(adminData.password)) {
+      newErrors.password = lang === 'Urdu' ? 'پاس ورڈ کم از کم 8 حروف، ایک بڑا حرف، ایک چھوٹا حرف، ایک نمبر اور ایک خاص علامت پر مشتمل ہونا چاہیے۔' : 'Password must be strong (8+ chars, uppercase, lowercase, number, special char)';
     }
+    
     if (!adminData.confirmPassword) {
       newErrors.confirmPassword = t.errorRequired;
     } else if (adminData.password !== adminData.confirmPassword) {
@@ -87,7 +98,7 @@ const AdminRegistration = () => {
             <input
               id="admin-fullname-input" type="text" name="fullName" placeholder={t.placeholderName}
               className={`form-input ${errors.fullName ? 'has-error' : ''}`}
-              value={adminData.fullName} onChange={handleChange} required
+              value={adminData.fullName} onChange={handleChange} required minLength="2" maxLength="50"
               aria-required="true" aria-invalid={errors.fullName ? 'true' : 'false'}
             />
             {errors.fullName && <p className="error-message" role="alert">{errors.fullName}</p>}
@@ -98,7 +109,7 @@ const AdminRegistration = () => {
             <input
               id="admin-email-input" type="email" name="email" placeholder={t.placeholderEmail}
               className={`form-input ${errors.email ? 'has-error' : ''}`}
-              value={adminData.email} onChange={handleChange} required
+              value={adminData.email} onChange={handleChange} required maxLength="100"
               aria-required="true" aria-invalid={errors.email ? 'true' : 'false'}
             />
             {errors.email && <p className="error-message" role="alert">{errors.email}</p>}
@@ -109,7 +120,7 @@ const AdminRegistration = () => {
             <input
               id="admin-code-input" type="text" name="accessCode" placeholder={t.placeholderCode}
               className={`form-input access-code-field ${errors.accessCode ? 'has-error' : ''}`}
-              value={adminData.accessCode} onChange={handleChange} required
+              value={adminData.accessCode} onChange={handleChange} required maxLength="50"
               aria-required="true" aria-invalid={errors.accessCode ? 'true' : 'false'}
             />
             {errors.accessCode && <p className="error-message" role="alert">{errors.accessCode}</p>}
@@ -120,7 +131,7 @@ const AdminRegistration = () => {
             <input
               id="admin-password-input" type={showPassword ? 'text' : 'password'} name="password" placeholder={t.placeholderPassword}
               className={`form-input ${errors.password ? 'has-error' : ''}`}
-              value={adminData.password} onChange={handleChange} required
+              value={adminData.password} onChange={handleChange} required minLength="8" maxLength="128"
               aria-required="true" aria-invalid={errors.password ? 'true' : 'false'}
             />
             <button id="password-toggle-btn" type="button" className="input-icon-right" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Hide password' : 'Show password'}>
@@ -134,7 +145,7 @@ const AdminRegistration = () => {
             <input
               id="admin-confirm-password-input" type={showConfirmPassword ? 'text' : 'password'} name="confirmPassword" placeholder={t.placeholderConfirm}
               className={`form-input ${errors.confirmPassword ? 'has-error' : ''}`}
-              value={adminData.confirmPassword} onChange={handleChange} required
+              value={adminData.confirmPassword} onChange={handleChange} required minLength="8" maxLength="128"
               aria-required="true" aria-invalid={errors.confirmPassword ? 'true' : 'false'}
             />
             <button id="confirm-password-toggle-btn" type="button" className="input-icon-right" onClick={() => setShowConfirmPassword(!showConfirmPassword)} aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}>

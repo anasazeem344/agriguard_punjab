@@ -5,6 +5,15 @@ export const isNonEmptyString = (value) => typeof value === 'string' && value.tr
 
 export const isValidEmail = (value) => isNonEmptyString(value) && /^\S+@\S+\.\S+$/.test(value);
 
+// Name validation: 2 to 50 characters, only letters, spaces, and basic punctuation
+export const isValidName = (value) => isNonEmptyString(value) && value.length >= 2 && value.length <= 50 && /^[a-zA-Z\s\-']+$/.test(value);
+
+// Strong password: At least 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char
+export const isStrongPassword = (value) => {
+  if (!isNonEmptyString(value)) return false;
+  return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,128}$/.test(value);
+};
+
 // Accepts Pakistani mobile numbers in common formats (03001234567, 0300-1234567,
 // +923001234567) and normalizes to a single canonical digits-only form starting with 0.
 export const normalizePhone = (value) => {

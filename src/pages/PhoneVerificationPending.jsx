@@ -22,6 +22,7 @@ const PhoneVerificationPending = () => {
   const [devOtp, setDevOtp] = useState(initial.devOtp || null);
   const [resending, setResending] = useState(false);
   const [resendMessage, setResendMessage] = useState(null);
+  
   const completingRef = useRef(false);
 
   useEffect(() => {

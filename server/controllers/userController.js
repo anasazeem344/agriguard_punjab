@@ -3,7 +3,7 @@ import User from '../models/User.js';
 import AdminProfile from '../models/AdminProfile.js';
 import FarmerProfile from '../models/FarmerProfile.js';
 import { isDbReady } from '../config/db.js';
-import { isNonEmptyString, isValidEmail, normalizePhone, isPositiveNumber } from '../utils/validators.js';
+import { isNonEmptyString, isValidEmail, normalizePhone, isPositiveNumber, isStrongPassword } from '../utils/validators.js';
 import { issueVerificationEmail } from '../utils/verificationEmail.js';
 import { issuePhoneOtp } from '../utils/phoneVerification.js';
 
@@ -60,27 +60,8 @@ export const updateMe = async (req, res) => {
       user.fullName = fullName;
     }
 
-    // Admins verify via email; changing it means the new address hasn't been
-    // proven yet, so it must be re-verified before the next login.
-    let emailChanged = false;
-    if (user.role === 'admin' && email !== undefined && email.toLowerCase() !== (user.email || '').toLowerCase()) {
-      if (!isValidEmail(email)) {
-        return res.status(400).json({ message: 'Please enter a valid email address' });
-      }
-      const existing = await User.findOne({ email: email.toLowerCase(), _id: { $ne: user._id } });
-      if (existing) {
-        return res.status(400).json({ message: 'Another account already uses this email' });
-      }
-      user.email = email;
-      user.isEmailVerified = false;
-      emailChanged = true;
-    } else if (email !== undefined && isValidEmail(email)) {
-      // Farmers can still keep an informational email on file (no verification tied to it).
-      const existing = await User.findOne({ email: email.toLowerCase(), _id: { $ne: user._id } });
-      if (existing) {
-        return res.status(400).json({ message: 'Another account already uses this email' });
-      }
-      user.email = email;
+    if (email !== undefined && email.toLowerCase() !== (user.email || '').toLowerCase()) {
+      return res.status(400).json({ message: 'Email address cannot be updated after registration' });
     }
 
     // Farmers verify via phone; changing it means the new number hasn't
@@ -123,16 +104,7 @@ export const updateMe = async (req, res) => {
       }
     }
 
-    if (emailChanged) {
-      const { mocked, verifyUrl } = await issueVerificationEmail(user);
-      return res.status(200).json({
-        success: true,
-        message: 'Profile updated. Please verify your new email address before your next login.',
-        requiresVerification: true,
-        verificationChannel: 'email',
-        ...(mocked && { devVerificationUrl: verifyUrl })
-      });
-    }
+    // Email changing is disabled, so we no longer send verification emails here.
 
     if (phoneChanged) {
       const { configured, otp, deepLink, whatsappNumber } = await issuePhoneOtp(user);
@@ -166,8 +138,8 @@ export const changePassword = async (req, res) => {
     if (!isNonEmptyString(currentPassword) || !isNonEmptyString(newPassword)) {
       return res.status(400).json({ message: 'Current and new password are required' });
     }
-    if (newPassword.length < 8) {
-      return res.status(400).json({ message: 'New password must be at least 8 characters long' });
+    if (!isStrongPassword(newPassword)) {
+      return res.status(400).json({ message: 'New password must be strong (8+ chars, uppercase, lowercase, number, special char)' });
     }
 
     const user = await User.findById(req.user._id);

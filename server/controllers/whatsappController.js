@@ -31,6 +31,7 @@ export const receiveWebhook = async (req, res) => {
   // Always acknowledge quickly - Meta retries (and can disable the webhook)
   // if it doesn't get a fast 200, regardless of what we do with the payload.
   res.sendStatus(200);
+  console.log('Received WhatsApp Webhook POST:', JSON.stringify(req.body, null, 2));
 
   try {
     if (!isDbReady()) return;
