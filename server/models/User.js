@@ -68,6 +68,29 @@ const userSchema = new mongoose.Schema({
     type: Date,
     select: false
   },
+  // One-time token required by completePhoneVerification to prevent anyone
+  // who merely knows a farmer's phone from obtaining a session token later.
+  pendingVerificationToken: {
+    type: String,
+    select: false
+  },
+  pendingVerificationExpire: {
+    type: Date,
+    select: false
+  },
+  // 'whatsapp' or 'email' — set at registration, used by resend to re-deliver via the same channel.
+  verificationChannel: {
+    type: String,
+    enum: ['whatsapp', 'email'],
+    default: 'whatsapp'
+  },
+  // Tracks consecutive wrong OTP submissions. Reset on new OTP issue or
+  // successful verification. OTP is invalidated after MAX_OTP_ATTEMPTS.
+  otpAttempts: {
+    type: Number,
+    default: 0,
+    select: false
+  },
   // Bumped whenever the password changes; any JWT issued before this
   // instant is rejected by the auth middleware even if it hasn't expired yet.
   passwordChangedAt: {

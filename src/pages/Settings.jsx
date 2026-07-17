@@ -6,6 +6,8 @@ import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { isValidPhoneFormat, isValidEmailFormat } from '../utils/validators';
+
+const STRONG_PASSWORD_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,128}$/;
 import { provinces, provinceLabels, districtsByProvince } from '../data/pakistanLocations';
 
 const Settings = () => {
@@ -80,7 +82,7 @@ const Settings = () => {
 
       if (res.data.requiresVerification && res.data.verificationChannel === 'phone') {
         navigate('/verify-phone-pending', {
-          state: { phone: profile.phone, deepLink: res.data.deepLink, devOtp: res.data.devOtp }
+          state: { phone: res.data.phone || profile.phone, channel: res.data.channel || 'whatsapp', pendingToken: res.data.pendingToken, devOtp: res.data.devOtp }
         });
         return;
       }
@@ -110,8 +112,8 @@ const Settings = () => {
     if (!passwordForm.currentPassword) newErrors.currentPassword = t.errorRequired;
     if (!passwordForm.newPassword) {
       newErrors.newPassword = t.errorRequired;
-    } else if (passwordForm.newPassword.length < 8) {
-      newErrors.newPassword = t.errorLength;
+    } else if (!STRONG_PASSWORD_RE.test(passwordForm.newPassword)) {
+      newErrors.newPassword = t.errorStrongPassword;
     }
     if (!passwordForm.confirmNewPassword) {
       newErrors.confirmNewPassword = t.errorRequired;
@@ -188,7 +190,8 @@ const Settings = () => {
                 <span className="input-icon-left" aria-hidden="true"><Phone size={18} /></span>
                 <input
                   id="settings-phone-input" type="tel" name="phone" placeholder={t.placeholderPhone}
-                  className="form-input" value={profile.phone || ''} onChange={handleProfileChange} required
+                  className="form-input" value={profile.phone || ''} disabled readOnly
+                  title={t.phoneCannotChange}
                 />
               </div>
               <div className="form-group">

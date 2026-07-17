@@ -5,8 +5,12 @@ export const isNonEmptyString = (value) => typeof value === 'string' && value.tr
 
 export const isValidEmail = (value) => isNonEmptyString(value) && /^\S+@\S+\.\S+$/.test(value);
 
-// Name validation: 2 to 50 characters, only letters, spaces, and basic punctuation
-export const isValidName = (value) => isNonEmptyString(value) && value.length >= 2 && value.length <= 50 && /^[a-zA-Z\s\-']+$/.test(value);
+// Accepts any Unicode letters (Latin, Urdu, Arabic, etc.) plus spaces, hyphens, apostrophes.
+export const isValidName = (value) =>
+  isNonEmptyString(value) &&
+  value.length >= 2 &&
+  value.length <= 50 &&
+  /^[\p{L}\s\-']+$/u.test(value);
 
 // Strong password: At least 8 chars, 1 uppercase, 1 lowercase, 1 number, 1 special char
 export const isStrongPassword = (value) => {

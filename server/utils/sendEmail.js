@@ -5,8 +5,12 @@ const isEmailConfigured = () =>
   process.env.EMAIL_APP_PASSWORD &&
   !process.env.EMAIL_USER.includes('xxxx');
 
+// Transporter is created on first use so that dotenv has already loaded
+// by the time we read the env vars (ESM hoists imports before module body runs).
 let transporter = null;
-if (isEmailConfigured()) {
+const getTransporter = () => {
+  if (transporter) return transporter;
+  if (!isEmailConfigured()) return null;
   transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -14,12 +18,12 @@ if (isEmailConfigured()) {
       pass: process.env.EMAIL_APP_PASSWORD
     }
   });
-}
+  return transporter;
+};
 
-// Sends an email if Gmail SMTP is configured; otherwise logs it to the
-// console so the reset flow stays testable without any email service set up.
 export const sendEmail = async ({ to, subject, html }) => {
-  if (!transporter) {
+  const t = getTransporter();
+  if (!t) {
     console.log('----------------------------------------------------');
     console.log('[DEV MODE] Email sending is not configured (EMAIL_USER / EMAIL_APP_PASSWORD missing).');
     console.log(`To: ${to}`);
@@ -29,7 +33,7 @@ export const sendEmail = async ({ to, subject, html }) => {
     return { mocked: true };
   }
 
-  await transporter.sendMail({
+  await t.sendMail({
     from: `"AgriGuard Punjab" <${process.env.EMAIL_USER}>`,
     to,
     subject,

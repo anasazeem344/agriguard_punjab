@@ -38,10 +38,17 @@ export const translations = {
     // Validation Messages
     errorRequired: 'This field is required',
     errorEmail: 'Please enter a valid official email address',
+    errorEmailLength: 'Email must be under 100 characters',
     errorPhone: 'Please enter a valid Pakistani mobile number (e.g. 03001234567)',
     errorGeneric: 'Something went wrong. Please try again.',
     errorMatch: 'Passwords do not match',
     errorLength: 'Password must be at least 8 characters long',
+    errorStrongPassword: 'Password must be strong (8+ chars, uppercase, lowercase, number, special char @$!%*?&)',
+    errorNameLength: 'Name must be between 2 and 50 characters',
+    errorNameFormat: 'Name may only contain letters (any script), spaces, hyphens, and apostrophes',
+    errorAccessCodeLength: 'Access code cannot exceed 50 characters',
+    errorFarmAreaRange: 'Area must be between 0.1 and 100,000 acres',
+    registering: 'Registering...',
     successAdmin: 'Admin registration request submitted successfully!',
     successFarmer: 'Farmer account created successfully!',
 
@@ -59,7 +66,9 @@ export const translations = {
 
     // Forgot / Reset Password
     forgotTitle: 'Reset Your Password',
-    forgotSubtitle: "Enter your official email and we'll send you a reset link.",
+    forgotSubtitle: "Enter your email or phone number to reset your password.",
+    forgotOtpSubtitle: "Enter the 6-digit code sent to your WhatsApp to continue.",
+    placeholderEmailOrPhone: 'Email or Phone Number',
     btnSendReset: 'Send Reset Link',
     sendingReset: 'Sending...',
     backToLogin: 'Back to Login',
@@ -86,20 +95,32 @@ export const translations = {
     placeholderIdentifierGeneric: 'Phone Number or Email',
     requiresVerificationError: 'Please verify your email before logging in.',
 
-    // Phone (WhatsApp) Verification
-    phoneVerifyTitle: 'Verify Your Phone',
-    phoneVerifySubtitle: 'Almost done! Confirm this number is yours via WhatsApp to activate your account.',
-    phoneVerifyStep1: 'Tap the button below to open WhatsApp with your code pre-filled.',
-    phoneVerifyStep2: 'Send the message - that\'s it, no typing needed.',
-    phoneVerifyStep3: 'This page will update automatically once we receive it.',
-    btnOpenWhatsApp: 'Open WhatsApp & Send Code',
-    waitingForVerification: 'Waiting for your WhatsApp message...',
+    // Verification channel selector (registration & forgot password)
+    verifyVia: 'Verify via',
+    channelWhatsapp: 'WhatsApp',
+    channelEmail: 'Email',
+    verifyChannelNote: 'Choose how you want to receive your verification code.',
+    forgotMethodTitle: 'How would you like to reset?',
+    forgotMethodWhatsapp: 'Reset via WhatsApp',
+    forgotMethodWhatsappDesc: 'Enter your phone number and receive an OTP on WhatsApp.',
+    forgotMethodEmail: 'Reset via Email',
+    forgotMethodEmailDesc: 'Enter your email and receive a reset link.',
+
+    // Phone / Email OTP Verification
+    phoneVerifyTitle: 'Enter Your OTP',
+    phoneVerifySubtitle: 'We sent a 6-digit code to your WhatsApp. Enter it below to activate your account.',
+    emailVerifyOtpSubtitle: 'We sent a 6-digit code to your email. Enter it below to activate your account.',
+    placeholderOtp: 'Enter 6-digit code',
+    btnVerifyOtp: 'Verify & Continue',
+    verifyingOtp: 'Verifying...',
+    errorOtpFormat: 'Please enter the 6-digit code sent to your WhatsApp',
     phoneVerifySuccess: 'Phone verified successfully! Redirecting...',
-    devOtpNote: 'WhatsApp is not configured yet, so here is dev-mode verification:',
-    btnDevSimulateVerify: 'Simulate Verification (Dev Mode)',
+    devOtpNote: 'WhatsApp is not configured — using dev mode OTP:',
+    devEmailOtpNote: 'Email is not configured — using dev mode OTP:',
     btnResendOtp: 'Resend Code',
+    resendingVerification: 'Sending...',
     yourCode: 'Your code',
-    requiresPhoneVerificationError: 'Please verify your phone number via WhatsApp before logging in.',
+    requiresPhoneVerificationError: 'Please verify your phone number before logging in.',
 
     // Sidebar (shared)
     sidebarWelcome: 'Welcome back',
@@ -133,7 +154,12 @@ export const translations = {
     regionalDiseaseStatsDesc: 'Reported incidence across monitored sectors',
     filter: 'Filter',
 
-    // Farmer Dashboard
+    // Farmer Dashboard — activity log table columns
+    colDateTime: 'Date & Time',
+    colEventType: 'Event Type',
+    colLocationSimple: 'Location',
+    colSeverity: 'Severity',
+
     farmerDashTitle: 'Overview',
     iotFieldMonitoring: 'IoT Field Monitoring',
     iotFieldMonitoringDesc: 'Real-time telemetry for Sector 4, Region A',
@@ -162,6 +188,7 @@ export const translations = {
     placeholderCurrentPassword: 'Current Password',
     btnChangePassword: 'Update Password',
     profileUpdateSuccess: 'Profile updated successfully',
+    phoneCannotChange: 'Phone number cannot be changed after registration',
     passwordChangeSuccess: 'Password changed successfully',
     logoutConfirm: 'Are you sure you want to log out?'
   },
@@ -204,10 +231,17 @@ export const translations = {
     // Validation Messages
     errorRequired: 'یہ خانہ پُر کرنا لازمی ہے',
     errorEmail: 'براہ کرم درست سرکاری ای میل درج کریں',
+    errorEmailLength: 'ای میل 100 حروف سے کم ہونی چاہیے',
     errorPhone: 'براہ کرم درست پاکستانی موبائل نمبر درج کریں (مثلاً 03001234567)',
     errorGeneric: 'کچھ غلط ہو گیا۔ براہ کرم دوبارہ کوشش کریں۔',
     errorMatch: 'پاس ورڈز مطابقت نہیں رکھتے',
     errorLength: 'پاس ورڈ کم از کم 8 حروف کا ہونا ضروری ہے',
+    errorStrongPassword: 'پاس ورڈ مضبوط ہونا چاہیے (8+ حروف، بڑا حرف، چھوٹا حرف، نمبر، خاص علامت @$!%*?&)',
+    errorNameLength: 'نام 2 سے 50 حروف کے درمیان ہونا چاہیے',
+    errorNameFormat: 'نام میں صرف حروف (کسی بھی زبان میں)، خالی جگہ، ہائفن اور اپوسٹروفی استعمال ہو سکتی ہے',
+    errorAccessCodeLength: 'ایکسس کوڈ 50 حروف سے زیادہ نہیں ہو سکتا',
+    errorFarmAreaRange: 'رقبہ 0.1 سے 100,000 ایکڑ کے درمیان ہونا چاہیے',
+    registering: 'رجسٹریشن ہو رہی ہے...',
     successAdmin: 'ایڈمن رجسٹریشن کی درخواست کامیابی کے ساتھ جمع ہو گئی ہے!',
     successFarmer: 'کسان کا اکاؤنٹ کامیابی سے بن گیا ہے!',
 
@@ -225,7 +259,9 @@ export const translations = {
 
     // Forgot / Reset Password
     forgotTitle: 'پاس ورڈ دوبارہ ترتیب دیں',
-    forgotSubtitle: 'اپنی سرکاری ای میل درج کریں، ہم آپ کو ری سیٹ لنک بھیجیں گے۔',
+    forgotSubtitle: 'اپنا پاس ورڈ ری سیٹ کرنے کے لیے اپنی ای میل یا فون نمبر درج کریں۔',
+    forgotOtpSubtitle: 'جاری رکھنے کے لیے اپنے واٹس ایپ پر بھیجا گیا 6 ہندسوں کا کوڈ درج کریں۔',
+    placeholderEmailOrPhone: 'ای میل یا فون نمبر',
     btnSendReset: 'ری سیٹ لنک بھیجیں',
     sendingReset: 'بھیجا جا رہا ہے...',
     backToLogin: 'لاگ ان پر واپس جائیں',
@@ -253,19 +289,31 @@ export const translations = {
     requiresVerificationError: 'لاگ ان کرنے سے پہلے براہ کرم اپنی ای میل کی تصدیق کریں۔',
 
     // Phone (WhatsApp) Verification
-    phoneVerifyTitle: 'اپنے فون کی تصدیق کریں',
-    phoneVerifySubtitle: 'تقریباً ہو گیا! اپنا اکاؤنٹ فعال کرنے کے لیے واٹس ایپ کے ذریعے اس نمبر کی تصدیق کریں۔',
-    phoneVerifyStep1: 'اپنا کوڈ پہلے سے بھرے ہوئے واٹس ایپ کھولنے کے لیے نیچے دیے گئے بٹن کو دبائیں۔',
-    phoneVerifyStep2: 'پیغام بھیجیں - بس اتنا ہی، ٹائپ کرنے کی ضرورت نہیں۔',
-    phoneVerifyStep3: 'موصول ہونے کے بعد یہ صفحہ خود بخود اپڈیٹ ہو جائے گا۔',
-    btnOpenWhatsApp: 'واٹس ایپ کھولیں اور کوڈ بھیجیں',
-    waitingForVerification: 'آپ کے واٹس ایپ پیغام کا انتظار ہے...',
+    // Verification channel selector
+    verifyVia: 'تصدیق کا طریقہ',
+    channelWhatsapp: 'واٹس ایپ',
+    channelEmail: 'ای میل',
+    verifyChannelNote: 'اپنا تصدیقی کوڈ حاصل کرنے کا طریقہ منتخب کریں۔',
+    forgotMethodTitle: 'آپ کس طرح ری سیٹ کرنا چاہتے ہیں؟',
+    forgotMethodWhatsapp: 'واٹس ایپ کے ذریعے ری سیٹ',
+    forgotMethodWhatsappDesc: 'اپنا فون نمبر درج کریں اور واٹس ایپ پر OTP حاصل ��ریں۔',
+    forgotMethodEmail: 'ای میل کے ذریعے ری سیٹ',
+    forgotMethodEmailDesc: 'اپنی ای میل درج کریں اور ری سیٹ لنک حاصل کریں۔',
+
+    phoneVerifyTitle: 'OTP درج کریں',
+    emailVerifyOtpSubtitle: 'ہم نے آپ کی ای میل پر 6 ہندسوں کا کوڈ بھیجا ہے۔ اپنا اکاؤنٹ فعال کرنے کے لیے اسے نیچے درج کریں۔',
+    phoneVerifySubtitle: 'ہم نے آپ کے واٹس ایپ پر 6 ہندسوں کا کوڈ بھیجا ہے۔ اپنا اکاؤنٹ فعال کرنے کے لیے اسے نیچے درج کریں۔',
+    placeholderOtp: '6 ہندسوں کا کوڈ درج کریں',
+    btnVerifyOtp: 'تصدیق کریں اور جاری رکھیں',
+    verifyingOtp: 'تصدیق ہو رہی ہے...',
+    errorOtpFormat: 'براہ کرم اپنے واٹس ایپ پر بھیجا گیا 6 ہندسوں کا کوڈ درج کریں',
     phoneVerifySuccess: 'فون کامیابی سے تصدیق ہو گیا! ری ڈائریکٹ ہو رہا ہے...',
-    devOtpNote: 'واٹس ایپ ابھی ترتیب نہیں دیا گیا، اس لیے یہ ڈیو موڈ تصدیق ہے:',
-    btnDevSimulateVerify: 'تصدیق کی نقالی کریں (ڈیو موڈ)',
+    devOtpNote: 'واٹس ایپ ترتیب نہیں دیا گیا — ڈیو موڈ OTP:',
+    devEmailOtpNote: 'ای میل ترتیب نہیں دی گئی — ڈیو موڈ OTP:',
     btnResendOtp: 'کوڈ دوبارہ بھیجیں',
+    resendingVerification: 'بھیجا جا رہا ہے...',
     yourCode: 'آپ کا کوڈ',
-    requiresPhoneVerificationError: 'لاگ ان کرنے سے پہلے براہ کرم واٹس ایپ کے ذریعے اپنے فون نمبر کی تصدیق کریں۔',
+    requiresPhoneVerificationError: 'لاگ ان کرنے سے پہلے براہ کرم اپنے فون نمبر کی تصدیق کریں۔',
 
     // Sidebar (shared)
     sidebarWelcome: 'خوش آمدید',
@@ -299,7 +347,12 @@ export const translations = {
     regionalDiseaseStatsDesc: 'مانیٹر کیے گئے سیکٹرز میں رپورٹ شدہ واقعات',
     filter: 'فلٹر',
 
-    // Farmer Dashboard
+    // Farmer Dashboard — activity log table columns
+    colDateTime: 'تاریخ اور وقت',
+    colEventType: 'واقعہ کی قسم',
+    colLocationSimple: 'مقام',
+    colSeverity: 'شدت',
+
     farmerDashTitle: 'جائزہ',
     iotFieldMonitoring: 'آئی او ٹی فیلڈ مانیٹرنگ',
     iotFieldMonitoringDesc: 'سیکٹر 4، علاقہ اے کے لیے ریئل ٹائم ٹیلی میٹری',
@@ -328,6 +381,7 @@ export const translations = {
     placeholderCurrentPassword: 'موجودہ پاس ورڈ',
     btnChangePassword: 'پاس ورڈ اپڈیٹ کریں',
     profileUpdateSuccess: 'پروفائل کامیابی سے اپڈیٹ ہو گئی',
+    phoneCannotChange: 'رجسٹریشن کے بعد فون نمبر تبدیل نہیں کیا جا سکتا',
     passwordChangeSuccess: 'پاس ورڈ کامیابی سے تبدیل ہو گیا',
     logoutConfirm: 'کیا آپ واقعی لاگ آؤٹ کرنا چاہتے ہیں؟'
   }

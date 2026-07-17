@@ -67,7 +67,12 @@ const Login = () => {
       if (unverified.channel === 'phone') {
         const res = await axiosClient.post('/auth/resend-phone-otp', { phone: unverified.value });
         navigate('/verify-phone-pending', {
-          state: { phone: unverified.value, deepLink: res.data.deepLink, devOtp: res.data.devOtp }
+          state: {
+            phone: unverified.value,
+            channel: res.data.channel || 'whatsapp',
+            pendingToken: res.data.pendingToken,
+            devOtp: res.data.devOtp
+          }
         });
         return;
       }

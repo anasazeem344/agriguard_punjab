@@ -1,13 +1,16 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useRef } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { isValidNameFormat } from '../utils/validators';
 import { User, Mail, IdCard, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import axiosClient from '../api/axiosClient';
 import { useLanguage } from '../context/LanguageContext';
 import AuthHeader from '../components/AuthHeader';
+import UrduKeyboard from '../components/UrduKeyboard';
 
 const AdminRegistration = () => {
   const navigate = useNavigate();
-  const { t, lang, isRtl } = useLanguage();
+  const { t, isRtl } = useLanguage();
+
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -17,6 +20,8 @@ const AdminRegistration = () => {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState(null);
+  const [nameFocused, setNameFocused] = useState(false);
+  const nameInputRef = useRef(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -27,26 +32,26 @@ const AdminRegistration = () => {
   const validate = () => {
     const newErrors = {};
     if (!adminData.fullName.trim()) newErrors.fullName = t.errorRequired;
-    else if (adminData.fullName.length < 2 || adminData.fullName.length > 50) newErrors.fullName = lang === 'Urdu' ? 'نام 2 سے 50 حروف کے درمیان ہونا چاہیے۔' : 'Name must be between 2 and 50 characters';
-    
+    else if (!isValidNameFormat(adminData.fullName)) newErrors.fullName = t.errorNameFormat;
+
     if (!adminData.email.trim()) {
       newErrors.email = t.errorRequired;
     } else if (!/\S+@\S+\.\S+/.test(adminData.email)) {
       newErrors.email = t.errorEmail;
     } else if (adminData.email.length > 100) {
-      newErrors.email = lang === 'Urdu' ? 'ای میل 100 حروف سے کم ہونی چاہیے۔' : 'Email must be under 100 characters';
+      newErrors.email = t.errorEmailLength;
     }
-    
+
     if (!adminData.accessCode.trim()) {
       newErrors.accessCode = t.errorRequired;
     } else if (adminData.accessCode.length > 50) {
-      newErrors.accessCode = lang === 'Urdu' ? 'ایکسس کوڈ 50 حروف سے زیادہ نہیں ہو سکتا۔' : 'Access code cannot exceed 50 characters';
+      newErrors.accessCode = t.errorAccessCodeLength;
     }
-    
+
     if (!adminData.password) {
       newErrors.password = t.errorRequired;
     } else if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,128}$/.test(adminData.password)) {
-      newErrors.password = lang === 'Urdu' ? 'پاس ورڈ کم از کم 8 حروف، ایک بڑا حرف، ایک چھوٹا حرف، ایک نمبر اور ایک خاص علامت پر مشتمل ہونا چاہیے۔' : 'Password must be strong (8+ chars, uppercase, lowercase, number, special char)';
+      newErrors.password = t.errorStrongPassword;
     }
     
     if (!adminData.confirmPassword) {
@@ -74,7 +79,7 @@ const AdminRegistration = () => {
         state: { email: adminData.email, devVerificationUrl: res.data.devVerificationUrl }
       });
     } catch (err) {
-      setServerError(err.response?.data?.message || (lang === 'Urdu' ? 'سرور کی خرابی، دوبارہ کوشش کریں۔' : 'Server error, please try again.'));
+      setServerError(err.response?.data?.message || t.errorGeneric);
     } finally {
       setLoading(false);
     }
@@ -99,9 +104,17 @@ const AdminRegistration = () => {
               id="admin-fullname-input" type="text" name="fullName" placeholder={t.placeholderName}
               className={`form-input ${errors.fullName ? 'has-error' : ''}`}
               value={adminData.fullName} onChange={handleChange} required minLength="2" maxLength="50"
+              ref={nameInputRef}
+              onFocus={() => setNameFocused(true)}
+              onBlur={() => setNameFocused(false)}
               aria-required="true" aria-invalid={errors.fullName ? 'true' : 'false'}
             />
             {errors.fullName && <p className="error-message" role="alert">{errors.fullName}</p>}
+            <UrduKeyboard
+              value={adminData.fullName}
+              onChange={(v) => { setAdminData((prev) => ({ ...prev, fullName: v })); if (errors.fullName) setErrors((prev) => ({ ...prev, fullName: null })); }}
+              show={isRtl && nameFocused}
+            />
           </div>
 
           <div className="form-group">
@@ -155,7 +168,7 @@ const AdminRegistration = () => {
           </div>
 
           <button id="admin-submit-btn" type="submit" className="submit-btn" disabled={loading}>
-            <span>{loading ? (lang === 'Urdu' ? 'رجسٹریشن ہو رہی ہے...' : 'Registering...') : t.btnRegisterAdmin}</span>
+            <span>{loading ? t.registering : t.btnRegisterAdmin}</span>
             {!loading && <ArrowRight size={16} style={{ transform: isRtl ? 'scaleX(-1)' : 'none' }} />}
           </button>
         </form>
@@ -164,9 +177,9 @@ const AdminRegistration = () => {
 
         <div className="card-footer">
           <span>{t.footerText}</span>
-          <a id="admin-login-link" href="#login" className="footer-link" onClick={(e) => { e.preventDefault(); navigate('/login'); }}>
+          <Link id="admin-login-link" to="/login" className="footer-link">
             {t.loginLink}
-          </a>
+          </Link>
         </div>
       </main>
     </div>

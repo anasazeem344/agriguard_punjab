@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Tractor, Shield, ArrowRight } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import AuthHeader from '../components/AuthHeader';
@@ -55,9 +55,9 @@ const RoleSelection = () => {
 
         <div className="role-selection-footer">
           <span>{t.footerText}</span>
-          <a id="role-login-link" href="#login" className="footer-link" onClick={(e) => { e.preventDefault(); navigate('/login'); }}>
+          <Link id="role-login-link" to="/login" className="footer-link">
             {t.loginLink}
-          </a>
+          </Link>
         </div>
       </main>
     </div>

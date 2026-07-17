@@ -99,10 +99,10 @@ const Overview = () => {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Date &amp; Time</th>
-                <th>Event Type</th>
-                <th>Location</th>
-                <th>Severity</th>
+                <th>{t.colDateTime}</th>
+                <th>{t.colEventType}</th>
+                <th>{t.colLocationSimple}</th>
+                <th>{t.colSeverity}</th>
               </tr>
             </thead>
             <tbody>

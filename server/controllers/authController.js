@@ -3,20 +3,19 @@ import mongoose from 'mongoose';
 import User from '../models/User.js';
 import AdminProfile from '../models/AdminProfile.js';
 import FarmerProfile from '../models/FarmerProfile.js';
+import PendingRegistration from '../models/PendingRegistration.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { sendEmail } from '../utils/sendEmail.js';
 import { isDbReady } from '../config/db.js';
 import { isNonEmptyString, isValidEmail, normalizePhone, isPositiveNumber, isValidName, isStrongPassword } from '../utils/validators.js';
 import { issueVerificationEmail } from '../utils/verificationEmail.js';
-import { issuePhoneOtp } from '../utils/phoneVerification.js';
-import { isWhatsAppConfigured } from '../utils/whatsapp.js';
+import { issueOtp, matchesOtp, MAX_OTP_ATTEMPTS } from '../utils/phoneVerification.js';
 
-// Helper to generate JWT Token
 const generateToken = (userId, role) => {
   return jwt.sign(
     { id: userId, role },
-    process.env.JWT_SECRET || 'secretkey',
+    process.env.JWT_SECRET,
     { expiresIn: '30d' }
   );
 };
@@ -96,7 +95,8 @@ export const registerFarmer = async (req, res) => {
   try {
     if (!isDbReady()) return dbUnavailableResponse(res);
 
-    const { fullName, phone, email, province, district, farmArea, password } = req.body;
+    const { fullName, phone, email, province, district, farmArea, password, verificationChannel } = req.body;
+    const channel = verificationChannel === 'email' ? 'email' : 'whatsapp';
 
     const normalizedPhone = normalizePhone(phone);
     if (!isValidName(fullName) || !normalizedPhone || !isValidEmail(email) || !isNonEmptyString(province) ||
@@ -104,52 +104,45 @@ export const registerFarmer = async (req, res) => {
       return res.status(400).json({ message: 'All fields are required. Password must be strong (8+ chars, uppercase, lowercase, number, special char).' });
     }
 
-    const existingByPhone = await User.findOne({ phone: normalizedPhone });
-    if (existingByPhone) {
+    // Reject if a fully-verified account already holds this phone or email.
+    const verifiedByPhone = await User.findOne({ phone: normalizedPhone });
+    if (verifiedByPhone) {
       return res.status(400).json({ message: 'An account with this phone number already exists' });
     }
-    const existingByEmail = await User.findOne({ email: email.toLowerCase() });
-    if (existingByEmail) {
+    const verifiedByEmail = await User.findOne({ email: email.toLowerCase() });
+    if (verifiedByEmail) {
       return res.status(400).json({ message: 'An account with this email already exists' });
     }
+
+    // Remove any previous incomplete registration for the same phone or email
+    // so the user can start fresh without hitting a duplicate-key error.
+    await PendingRegistration.deleteMany({
+      $or: [{ phone: normalizedPhone }, { email: email.toLowerCase() }]
+    });
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    const session = await mongoose.startSession();
-    let user;
-    try {
-      await session.withTransaction(async () => {
-        user = await User.create([{
-          fullName,
-          phone: normalizedPhone,
-          email,
-          password: hashedPassword,
-          role: 'farmer'
-        }], { session }).then((docs) => docs[0]);
+    const pending = await PendingRegistration.create({
+      fullName,
+      phone: normalizedPhone,
+      email: email.toLowerCase(),
+      password: hashedPassword,
+      province,
+      district,
+      farmArea: Number(farmArea)
+    });
 
-        await FarmerProfile.create([{
-          user: user._id,
-          province,
-          district,
-          farmArea: Number(farmArea)
-        }], { session });
-      });
-    } finally {
-      await session.endSession();
-    }
-
-    const { configured, otp, deepLink, whatsappNumber } = await issuePhoneOtp(user);
+    const { otp, pendingToken } = await issueOtp(pending, channel);
 
     res.status(201).json({
       success: true,
       requiresVerification: true,
-      message: 'Registration successful. Please verify your phone number via WhatsApp to activate your account.',
-      phone: user.phone,
-      deepLink,
-      whatsappNumber,
-      // Only included when WhatsApp isn't configured, so the flow stays testable.
-      ...(!configured && { devOtp: otp })
+      message: `Please enter the OTP sent to your ${channel === 'email' ? 'email' : 'WhatsApp'} to activate your account.`,
+      phone: pending.phone,
+      channel,
+      pendingToken,
+      ...(otp !== null && { devOtp: otp })
     });
 
   } catch (error) {
@@ -175,10 +168,22 @@ export const loginUser = async (req, res) => {
     }
 
     const isEmail = identifier.includes('@');
-    const query = isEmail ? { email: identifier.toLowerCase() } : { phone: normalizePhone(identifier) || identifier };
+    const normalizedId = isEmail ? identifier.toLowerCase() : (normalizePhone(identifier) || identifier);
+    const query = isEmail ? { email: normalizedId } : { phone: normalizedId };
     const user = await User.findOne(query);
 
     if (!user) {
+      // Check if a pending (unverified) registration exists for this identifier.
+      const pending = await PendingRegistration.findOne(query);
+      if (pending) {
+        return res.status(403).json({
+          message: 'Your registration is not yet verified. Please complete phone verification.',
+          requiresVerification: true,
+          verificationChannel: 'phone',
+          otpChannel: pending.verificationChannel || 'whatsapp',
+          phone: pending.phone
+        });
+      }
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
@@ -198,9 +203,10 @@ export const loginUser = async (req, res) => {
 
     if (user.role === 'farmer' && !user.isPhoneVerified) {
       return res.status(403).json({
-        message: 'Please verify your phone number via WhatsApp before logging in.',
+        message: 'Please verify your account before logging in.',
         requiresVerification: true,
         verificationChannel: 'phone',
+        otpChannel: user.verificationChannel || 'whatsapp',
         phone: user.phone
       });
     }
@@ -310,23 +316,56 @@ export const resendVerification = async (req, res) => {
   }
 };
 
-// @desc    Request a password reset link (email-based)
+// @desc    Request a password reset link (accepts email or phone number)
 // @route   POST /api/auth/forgot-password
 // @access  Public
 export const forgotPassword = async (req, res) => {
-  const genericMessage = 'If an account with that email exists, a password reset link has been sent.';
+  const genericMessage = 'If an account matching that identifier exists, a password reset link has been sent to the associated email.';
   try {
     if (!isDbReady()) return dbUnavailableResponse(res);
 
-    const { email } = req.body;
-    if (!isValidEmail(email)) {
-      return res.status(400).json({ message: 'A valid email is required' });
+    const { identifier } = req.body;
+    if (!isNonEmptyString(identifier)) {
+      return res.status(400).json({ message: 'Please enter your email address or phone number' });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+    // Accept email or Pakistani phone number — find user by whichever was provided.
+    const isEmail = identifier.includes('@');
+    let query;
+    if (isEmail) {
+      if (!isValidEmail(identifier)) {
+        return res.status(400).json({ message: 'Please enter a valid email address' });
+      }
+      query = { email: identifier.toLowerCase() };
+    } else {
+      const normalizedPhone = normalizePhone(identifier);
+      if (!normalizedPhone) {
+        return res.status(400).json({ message: 'Please enter a valid email address or Pakistani mobile number' });
+      }
+      query = { phone: normalizedPhone };
+    }
 
-    // Respond identically whether the account exists or not (avoids email enumeration).
-    if (!user) {
+    const user = await User.findOne(query);
+
+    // Phone path: send OTP via WhatsApp instead of an email link.
+    if (!isEmail) {
+      // Respond identically for non-existent / unverified accounts to avoid enumeration.
+      if (!user || !user.isPhoneVerified) {
+        return res.status(200).json({ success: true, message: genericMessage });
+      }
+      const { otp, pendingToken } = await issueOtp(user, 'whatsapp');
+      return res.status(200).json({
+        success: true,
+        channel: 'whatsapp',
+        message: 'A verification code has been sent to your WhatsApp number.',
+        phone: user.phone,
+        pendingToken,
+        ...(otp !== null && { devOtp: otp })
+      });
+    }
+
+    // Email path: send reset link.
+    if (!user || !user.email) {
       return res.status(200).json({ success: true, message: genericMessage });
     }
 
@@ -349,7 +388,6 @@ export const forgotPassword = async (req, res) => {
     res.status(200).json({
       success: true,
       message: genericMessage,
-      // Only included when no real email service is configured, so the flow stays testable.
       ...(mocked && { devResetUrl: resetUrl })
     });
   } catch (error) {
@@ -368,8 +406,8 @@ export const resetPassword = async (req, res) => {
     const { token } = req.params;
     const { password } = req.body;
 
-    if (!isNonEmptyString(password) || password.length < 8) {
-      return res.status(400).json({ message: 'Password must be at least 8 characters long' });
+    if (!isStrongPassword(password)) {
+      return res.status(400).json({ message: 'Password must be at least 8 characters and include uppercase, lowercase, a number, and a special character (@$!%*?&)' });
     }
     if (!isNonEmptyString(token)) {
       return res.status(400).json({ message: 'This reset link is invalid or has expired' });
@@ -399,30 +437,9 @@ export const resetPassword = async (req, res) => {
   }
 };
 
-// @desc    Poll whether a farmer's phone has been verified yet (the webhook
-//          flips isPhoneVerified to true once they message the WhatsApp number)
-// @route   GET /api/auth/phone-verification-status?phone=...
-// @access  Public
-export const phoneVerificationStatus = async (req, res) => {
-  try {
-    if (!isDbReady()) return dbUnavailableResponse(res);
-
-    const normalizedPhone = normalizePhone(req.query.phone);
-    if (!normalizedPhone) {
-      return res.status(400).json({ message: 'A valid phone number is required' });
-    }
-
-    const user = await User.findOne({ phone: normalizedPhone, role: 'farmer' });
-    res.status(200).json({ success: true, verified: Boolean(user?.isPhoneVerified) });
-  } catch (error) {
-    console.error('Error in phoneVerificationStatus:', error);
-    res.status(500).json({ message: 'Server error, please try again later' });
-  }
-};
-
-// @desc    Once isPhoneVerified is true, issue a session without asking for
-//          the password again - the user already proved both phone and
-//          password ownership in the same registration session.
+// @desc    Farmer submits the OTP they received on WhatsApp. Validates the OTP
+//          and the pending-session token, then marks the phone verified and
+//          issues a JWT in one step — no polling or webhook required.
 // @route   POST /api/auth/complete-phone-verification
 // @access  Public
 export const completePhoneVerification = async (req, res) => {
@@ -430,14 +447,71 @@ export const completePhoneVerification = async (req, res) => {
     if (!isDbReady()) return dbUnavailableResponse(res);
 
     const normalizedPhone = normalizePhone(req.body.phone);
-    if (!normalizedPhone) {
-      return res.status(400).json({ message: 'A valid phone number is required' });
+    const { otp, pendingToken } = req.body;
+    if (!normalizedPhone || !isNonEmptyString(otp) || !isNonEmptyString(pendingToken)) {
+      return res.status(400).json({ message: 'Phone number, OTP, and session token are required' });
     }
 
-    const user = await User.findOne({ phone: normalizedPhone, role: 'farmer' });
-    if (!user || !user.isPhoneVerified) {
-      return res.status(400).json({ message: 'This phone number has not been verified yet' });
+    const pending = await PendingRegistration.findOne({ phone: normalizedPhone })
+      .select('+phoneVerificationOtp +phoneVerificationExpire +pendingVerificationToken +pendingVerificationExpire +otpAttempts +password');
+
+    if (!pending) {
+      return res.status(400).json({ message: 'No pending registration found. Please register again.' });
     }
+
+    const hashedPendingToken = crypto.createHash('sha256').update(pendingToken).digest('hex');
+    const tokenValid =
+      pending.pendingVerificationToken === hashedPendingToken &&
+      pending.pendingVerificationExpire &&
+      pending.pendingVerificationExpire > Date.now();
+
+    if (!tokenValid) {
+      return res.status(400).json({
+        message: 'This verification session has expired. Please register again.'
+      });
+    }
+
+    if ((pending.otpAttempts || 0) >= MAX_OTP_ATTEMPTS) {
+      return res.status(400).json({ message: 'Too many incorrect attempts. Please register again.' });
+    }
+
+    if (!matchesOtp(pending, otp)) {
+      pending.otpAttempts = (pending.otpAttempts || 0) + 1;
+      await pending.save();
+      const remaining = MAX_OTP_ATTEMPTS - pending.otpAttempts;
+      return res.status(400).json({
+        message: remaining > 0
+          ? `Incorrect OTP. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`
+          : 'Too many incorrect attempts. Please register again.'
+      });
+    }
+
+    // OTP correct — promote the pending record into a real verified user.
+    const session = await mongoose.startSession();
+    let user;
+    try {
+      await session.withTransaction(async () => {
+        user = await User.create([{
+          fullName:        pending.fullName,
+          phone:           pending.phone,
+          email:           pending.email,
+          password:        pending.password,
+          role:            'farmer',
+          isPhoneVerified: true
+        }], { session }).then(docs => docs[0]);
+
+        await FarmerProfile.create([{
+          user:     user._id,
+          province: pending.province,
+          district: pending.district,
+          farmArea: pending.farmArea
+        }], { session });
+      });
+    } finally {
+      await session.endSession();
+    }
+
+    await PendingRegistration.deleteOne({ _id: pending._id });
 
     const token = generateToken(user._id, user.role);
     res.status(200).json({
@@ -452,6 +526,9 @@ export const completePhoneVerification = async (req, res) => {
       }
     });
   } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({ message: 'An account already exists with this phone or email. Please log in.' });
+    }
     console.error('Error in completePhoneVerification:', error);
     res.status(500).json({ message: 'Server error, please try again later' });
   }
@@ -461,7 +538,7 @@ export const completePhoneVerification = async (req, res) => {
 // @route   POST /api/auth/resend-phone-otp
 // @access  Public
 export const resendPhoneOtp = async (req, res) => {
-  const genericMessage = 'If an unverified farmer account matches that phone number, a new code has been issued.';
+  const genericMessage = 'If a pending registration exists for that number, a new code has been issued.';
   try {
     if (!isDbReady()) return dbUnavailableResponse(res);
 
@@ -470,18 +547,19 @@ export const resendPhoneOtp = async (req, res) => {
       return res.status(400).json({ message: 'A valid phone number is required' });
     }
 
-    const user = await User.findOne({ phone: normalizedPhone, role: 'farmer' });
-    if (!user || user.isPhoneVerified) {
+    const pending = await PendingRegistration.findOne({ phone: normalizedPhone });
+    if (!pending) {
       return res.status(200).json({ success: true, message: genericMessage });
     }
 
-    const { configured, otp, deepLink, whatsappNumber } = await issuePhoneOtp(user);
+    const channel = pending.verificationChannel || 'whatsapp';
+    const { otp, pendingToken } = await issueOtp(pending, channel);
     res.status(200).json({
       success: true,
       message: genericMessage,
-      deepLink,
-      whatsappNumber,
-      ...(!configured && { devOtp: otp })
+      channel,
+      pendingToken,
+      ...(otp !== null && { devOtp: otp })
     });
   } catch (error) {
     console.error('Error in resendPhoneOtp:', error);
@@ -489,37 +567,67 @@ export const resendPhoneOtp = async (req, res) => {
   }
 };
 
-// @desc    Dev-only shortcut to mark a phone verified without WhatsApp set up.
-//          Automatically disables itself once real WhatsApp credentials are
-//          configured, so it can never be used as a backdoor in production.
-// @route   POST /api/auth/dev-verify-phone
-// @access  Public (but inert unless WhatsApp is unconfigured)
-export const devVerifyPhone = async (req, res) => {
+// @desc    Verify the WhatsApp OTP issued during "forgot password" for a farmer.
+//          On success, issues a short-lived password-reset token so the farmer
+//          can set a new password without receiving an email.
+// @route   POST /api/auth/verify-forgot-otp
+// @access  Public
+export const verifyForgotOtp = async (req, res) => {
   try {
     if (!isDbReady()) return dbUnavailableResponse(res);
-    if (isWhatsAppConfigured()) {
-      return res.status(403).json({ message: 'Dev verification is disabled because WhatsApp is configured' });
-    }
 
     const normalizedPhone = normalizePhone(req.body.phone);
-    if (!normalizedPhone) {
-      return res.status(400).json({ message: 'A valid phone number is required' });
+    const { otp, pendingToken } = req.body;
+    if (!normalizedPhone || !isNonEmptyString(otp) || !isNonEmptyString(pendingToken)) {
+      return res.status(400).json({ message: 'Phone number, OTP, and session token are required' });
     }
 
-    const user = await User.findOne({ phone: normalizedPhone, role: 'farmer' });
+    const user = await User.findOne({ phone: normalizedPhone, role: 'farmer', isPhoneVerified: true })
+      .select('+phoneVerificationOtp +phoneVerificationExpire +pendingVerificationToken +pendingVerificationExpire +otpAttempts');
+
     if (!user) {
-      return res.status(400).json({ message: 'No pending registration found for this phone number' });
+      return res.status(400).json({ message: 'No account found for this phone number' });
     }
 
-    user.isPhoneVerified = true;
+    const hashedPendingToken = crypto.createHash('sha256').update(pendingToken).digest('hex');
+    const tokenValid =
+      user.pendingVerificationToken === hashedPendingToken &&
+      user.pendingVerificationExpire &&
+      user.pendingVerificationExpire > Date.now();
+
+    if (!tokenValid) {
+      return res.status(400).json({ message: 'This session has expired. Please request a new code.' });
+    }
+
+    if ((user.otpAttempts || 0) >= MAX_OTP_ATTEMPTS) {
+      return res.status(400).json({ message: 'Too many incorrect attempts. Please request a new code.' });
+    }
+
+    if (!matchesOtp(user, otp)) {
+      user.otpAttempts = (user.otpAttempts || 0) + 1;
+      await user.save();
+      const remaining = MAX_OTP_ATTEMPTS - user.otpAttempts;
+      return res.status(400).json({
+        message: remaining > 0
+          ? `Incorrect OTP. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`
+          : 'Too many incorrect attempts. Please request a new code.'
+      });
+    }
+
+    // OTP verified — issue a password-reset token and consume the OTP.
+    const rawResetToken = crypto.randomBytes(32).toString('hex');
+    user.resetPasswordToken = crypto.createHash('sha256').update(rawResetToken).digest('hex');
+    user.resetPasswordExpire = Date.now() + 15 * 60 * 1000; // 15 minutes
     user.phoneVerificationOtp = undefined;
     user.phoneVerificationExpire = undefined;
+    user.pendingVerificationToken = undefined;
+    user.pendingVerificationExpire = undefined;
+    user.otpAttempts = 0;
     await user.save();
 
-    res.status(200).json({ success: true, message: 'Phone verified (dev mode).' });
+    res.status(200).json({ success: true, resetToken: rawResetToken });
   } catch (error) {
-    console.error('Error in devVerifyPhone:', error);
+    console.error('Error in verifyForgotOtp:', error);
     res.status(500).json({ message: 'Server error, please try again later' });
   }
 };
-

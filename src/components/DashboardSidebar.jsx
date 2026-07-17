@@ -21,7 +21,7 @@ const DashboardSidebar = ({ navItems, portalLabel }) => {
     <aside className="dashboard-sidebar">
       <div className="sidebar-brand">
         <Leaf size={22} fill="currentColor" />
-        <span>AgriResearch Pro</span>
+        <span>{t.appName}</span>
       </div>
 
       <div className="sidebar-user">

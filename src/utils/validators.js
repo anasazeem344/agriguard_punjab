@@ -1,6 +1,14 @@
 // Shared client-side validation helpers used across registration, login,
 // settings, and reset-password forms to avoid copy-pasted logic.
 
+// Accepts any Unicode letters (Latin, Urdu, Arabic, etc.) plus spaces, hyphens, apostrophes.
+// Mirrors the backend isValidName so validation agrees on both sides.
+export const isValidNameFormat = (value) =>
+  typeof value === 'string' &&
+  value.trim().length >= 2 &&
+  value.trim().length <= 50 &&
+  /^[\p{L}\s\-']+$/u.test(value.trim());
+
 export const isValidEmailFormat = (value) => /^\S+@\S+\.\S+$/.test(value);
 
 // Mirrors the backend's normalizePhone: accepts 03001234567, 0300-1234567,

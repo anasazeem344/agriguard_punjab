@@ -1,15 +1,16 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { User, Phone, Mail, MapPin, ChevronDown, Mountain, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { User, Phone, Mail, MapPin, ChevronDown, Mountain, Lock, Eye, EyeOff, ArrowRight, MessageCircle } from 'lucide-react';
 import axiosClient from '../api/axiosClient';
 import { useLanguage } from '../context/LanguageContext';
 import AuthHeader from '../components/AuthHeader';
-import { isValidPhoneFormat, isValidEmailFormat } from '../utils/validators';
+import UrduKeyboard from '../components/UrduKeyboard';
+import { isValidPhoneFormat, isValidEmailFormat, isValidNameFormat } from '../utils/validators';
 import { provinces, provinceLabels, districtsByProvince } from '../data/pakistanLocations';
 
 const FarmerRegistration = () => {
   const navigate = useNavigate();
-  const { t, lang, isRtl } = useLanguage();
+  const { t, isRtl } = useLanguage();
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -19,6 +20,9 @@ const FarmerRegistration = () => {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState(null);
+  const [verificationChannel, setVerificationChannel] = useState('whatsapp');
+  const [nameFocused, setNameFocused] = useState(false);
+  const nameInputRef = useRef(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -36,35 +40,35 @@ const FarmerRegistration = () => {
   const validate = () => {
     const newErrors = {};
     if (!farmerData.fullName.trim()) newErrors.fullName = t.errorRequired;
-    else if (farmerData.fullName.length < 2 || farmerData.fullName.length > 50) newErrors.fullName = lang === 'Urdu' ? 'نام 2 سے 50 حروف کے درمیان ہونا چاہیے۔' : 'Name must be between 2 and 50 characters';
-    
+    else if (!isValidNameFormat(farmerData.fullName)) newErrors.fullName = t.errorNameFormat;
+
     if (!farmerData.phone.trim()) {
       newErrors.phone = t.errorRequired;
     } else if (!isValidPhoneFormat(farmerData.phone)) {
       newErrors.phone = t.errorPhone;
     }
-    
+
     if (!farmerData.email.trim()) {
       newErrors.email = t.errorRequired;
     } else if (!isValidEmailFormat(farmerData.email)) {
       newErrors.email = t.errorEmail;
     } else if (farmerData.email.length > 100) {
-      newErrors.email = lang === 'Urdu' ? 'ای میل 100 حروف سے کم ہونی چاہیے۔' : 'Email must be under 100 characters';
+      newErrors.email = t.errorEmailLength;
     }
-    
+
     if (!farmerData.province.trim()) newErrors.province = t.errorRequired;
     if (!farmerData.district.trim()) newErrors.district = t.errorRequired;
-    
+
     if (!farmerData.farmArea.trim()) {
       newErrors.farmArea = t.errorRequired;
     } else if (Number(farmerData.farmArea) < 0.1 || Number(farmerData.farmArea) > 100000) {
-      newErrors.farmArea = lang === 'Urdu' ? 'رقبہ 0.1 سے 100,000 ایکڑ کے درمیان ہونا چاہیے۔' : 'Area must be between 0.1 and 100,000 acres';
+      newErrors.farmArea = t.errorFarmAreaRange;
     }
-    
+
     if (!farmerData.password) {
       newErrors.password = t.errorRequired;
     } else if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,128}$/.test(farmerData.password)) {
-      newErrors.password = lang === 'Urdu' ? 'پاس ورڈ کم از کم 8 حروف، ایک بڑا حرف، ایک چھوٹا حرف، ایک نمبر اور ایک خاص علامت پر مشتمل ہونا چاہیے۔' : 'Password must be strong (8+ chars, uppercase, lowercase, number, special char)';
+      newErrors.password = t.errorStrongPassword;
     }
     
     if (!farmerData.confirmPassword) {
@@ -89,18 +93,19 @@ const FarmerRegistration = () => {
         province: farmerData.province,
         district: farmerData.district,
         farmArea: farmerData.farmArea,
-        password: farmerData.password
+        password: farmerData.password,
+        verificationChannel
       });
       navigate('/verify-phone-pending', {
         state: {
           phone: res.data.phone,
-          deepLink: res.data.deepLink,
-          whatsappNumber: res.data.whatsappNumber,
+          channel: res.data.channel || 'whatsapp',
+          pendingToken: res.data.pendingToken,
           devOtp: res.data.devOtp
         }
       });
     } catch (err) {
-      setServerError(err.response?.data?.message || (lang === 'Urdu' ? 'سرور کی خرابی، دوبارہ کوشش کریں۔' : 'Server error, please try again.'));
+      setServerError(err.response?.data?.message || t.errorGeneric);
     } finally {
       setLoading(false);
     }
@@ -127,9 +132,17 @@ const FarmerRegistration = () => {
               id="farmer-fullname-input" type="text" name="fullName" placeholder={t.placeholderName}
               className={`form-input ${errors.fullName ? 'has-error' : ''}`}
               value={farmerData.fullName} onChange={handleChange} required minLength="2" maxLength="50"
+              ref={nameInputRef}
+              onFocus={() => setNameFocused(true)}
+              onBlur={() => setNameFocused(false)}
               aria-required="true" aria-invalid={errors.fullName ? 'true' : 'false'}
             />
             {errors.fullName && <p className="error-message" role="alert">{errors.fullName}</p>}
+            <UrduKeyboard
+              value={farmerData.fullName}
+              onChange={(v) => { setFarmerData((prev) => ({ ...prev, fullName: v })); if (errors.fullName) setErrors((prev) => ({ ...prev, fullName: null })); }}
+              show={isRtl && nameFocused}
+            />
           </div>
 
           <div className="form-group">
@@ -234,8 +247,31 @@ const FarmerRegistration = () => {
             {errors.confirmPassword && <p className="error-message" role="alert">{errors.confirmPassword}</p>}
           </div>
 
+          {/* Verification channel selector */}
+          <div className="channel-selector-group">
+            <p className="channel-selector-label">{t.verifyVia}</p>
+            <div className="channel-selector">
+              <button
+                type="button"
+                className={`channel-option ${verificationChannel === 'whatsapp' ? 'active' : ''}`}
+                onClick={() => setVerificationChannel('whatsapp')}
+              >
+                <MessageCircle size={15} />
+                {t.channelWhatsapp}
+              </button>
+              <button
+                type="button"
+                className={`channel-option ${verificationChannel === 'email' ? 'active' : ''}`}
+                onClick={() => setVerificationChannel('email')}
+              >
+                <Mail size={15} />
+                {t.channelEmail}
+              </button>
+            </div>
+          </div>
+
           <button id="farmer-submit-btn" type="submit" className="submit-btn" disabled={loading}>
-            <span>{loading ? (lang === 'Urdu' ? 'رجسٹریشن ہو رہی ہے...' : 'Registering...') : t.btnRegisterFarmer}</span>
+            <span>{loading ? t.registering : t.btnRegisterFarmer}</span>
             {!loading && <ArrowRight size={16} style={{ transform: isRtl ? 'scaleX(-1)' : 'none' }} />}
           </button>
         </form>
@@ -244,9 +280,9 @@ const FarmerRegistration = () => {
 
         <div className="card-footer">
           <span>{t.footerText}</span>
-          <a id="farmer-login-link" href="#login" className="footer-link" onClick={(e) => { e.preventDefault(); navigate('/login'); }}>
+          <Link id="farmer-login-link" to="/login" className="footer-link">
             {t.loginLink}
-          </a>
+          </Link>
         </div>
       </main>
     </div>

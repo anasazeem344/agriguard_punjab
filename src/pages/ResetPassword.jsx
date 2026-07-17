@@ -3,12 +3,16 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import axiosClient from '../api/axiosClient';
 import { useLanguage } from '../context/LanguageContext';
+import { useToast } from '../context/ToastContext';
 import AuthHeader from '../components/AuthHeader';
+
+const STRONG_PASSWORD_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,128}$/;
 
 const ResetPassword = () => {
   const navigate = useNavigate();
   const { token } = useParams();
   const { t, isRtl } = useLanguage();
+  const { showToast } = useToast();
 
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({ password: '', confirmPassword: '' });
@@ -26,8 +30,8 @@ const ResetPassword = () => {
     const newErrors = {};
     if (!formData.password) {
       newErrors.password = t.errorRequired;
-    } else if (formData.password.length < 8) {
-      newErrors.password = t.errorLength;
+    } else if (!STRONG_PASSWORD_RE.test(formData.password)) {
+      newErrors.password = t.errorStrongPassword;
     }
     if (!formData.confirmPassword) {
       newErrors.confirmPassword = t.errorRequired;
@@ -45,7 +49,7 @@ const ResetPassword = () => {
       setLoading(true);
       setServerError(null);
       await axiosClient.post(`/auth/reset-password/${token}`, { password: formData.password });
-      alert(t.resetSuccess);
+      showToast(t.resetSuccess, 'success');
       navigate('/login');
     } catch (err) {
       setServerError(err.response?.data?.message || t.errorRequired);

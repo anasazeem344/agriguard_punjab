@@ -33,3 +33,9 @@ server/.env.*
 .agents/
 .claude/
 graphify-out/
+
+# Debug / scratch scripts and logs (never commit these)
+*.log
+server/check-user.js
+server/test-flow.js
+server/_tmp_*.mjs

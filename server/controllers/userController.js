@@ -5,7 +5,7 @@ import FarmerProfile from '../models/FarmerProfile.js';
 import { isDbReady } from '../config/db.js';
 import { isNonEmptyString, isValidEmail, normalizePhone, isPositiveNumber, isStrongPassword } from '../utils/validators.js';
 import { issueVerificationEmail } from '../utils/verificationEmail.js';
-import { issuePhoneOtp } from '../utils/phoneVerification.js';
+
 
 const dbUnavailableResponse = (res) =>
   res.status(503).json({ message: 'Database is temporarily unavailable. Please try again shortly.' });
@@ -64,22 +64,11 @@ export const updateMe = async (req, res) => {
       return res.status(400).json({ message: 'Email address cannot be updated after registration' });
     }
 
-    // Farmers verify via phone; changing it means the new number hasn't
-    // been proven yet, so it must be re-verified before the next login.
-    let phoneChanged = false;
+    // Phone is the farmer's verified identity — it cannot be changed after registration.
     if (user.role === 'farmer' && phone !== undefined) {
       const normalizedPhone = normalizePhone(phone);
-      if (!normalizedPhone) {
-        return res.status(400).json({ message: 'Please enter a valid Pakistani mobile number' });
-      }
-      if (normalizedPhone !== user.phone) {
-        const existing = await User.findOne({ phone: normalizedPhone, _id: { $ne: user._id } });
-        if (existing) {
-          return res.status(400).json({ message: 'Another account already uses this phone number' });
-        }
-        user.phone = normalizedPhone;
-        user.isPhoneVerified = false;
-        phoneChanged = true;
+      if (normalizedPhone && normalizedPhone !== user.phone) {
+        return res.status(400).json({ message: 'Phone number cannot be changed after registration' });
       }
     }
 
@@ -102,21 +91,6 @@ export const updateMe = async (req, res) => {
         }
         await profile.save();
       }
-    }
-
-    // Email changing is disabled, so we no longer send verification emails here.
-
-    if (phoneChanged) {
-      const { configured, otp, deepLink, whatsappNumber } = await issuePhoneOtp(user);
-      return res.status(200).json({
-        success: true,
-        message: 'Profile updated. Please verify your new phone number via WhatsApp before your next login.',
-        requiresVerification: true,
-        verificationChannel: 'phone',
-        deepLink,
-        whatsappNumber,
-        ...(!configured && { devOtp: otp })
-      });
     }
 
     res.status(200).json({ success: true, message: 'Profile updated successfully' });
