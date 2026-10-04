@@ -32,8 +32,15 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['farmer', 'admin'],
+    enum: ['farmer', 'admin', 'superadmin'],
     required: true
+  },
+  // Only meaningful for admin/superadmin today — a suspended account is
+  // rejected by the auth middleware even with a valid, unexpired JWT.
+  status: {
+    type: String,
+    enum: ['active', 'suspended'],
+    default: 'active'
   },
   resetPasswordToken: {
     type: String,
@@ -89,6 +96,65 @@ const userSchema = new mongoose.Schema({
   otpAttempts: {
     type: Number,
     default: 0,
+    select: false
+  },
+  // Superadmin-only: real TOTP (RFC 6238) second factor, scanned into an
+  // authenticator app once at first-login enrollment. Nothing below is
+  // "live" until totpEnabled flips true in amsEnrollConfirm.
+  totpEnabled: {
+    type: Boolean,
+    default: false
+  },
+  // AES-256-GCM encrypted, not hashed — verifying a live code requires the
+  // actual secret, unlike a password which only ever needs a comparison.
+  totpSecretEncrypted: {
+    type: String,
+    select: false
+  },
+  totpEnrolledAt: {
+    type: Date
+  },
+  // Anti-replay: a login is only accepted if its matched RFC 6238 time step
+  // is strictly greater than this. -1 means "never used yet" (sentinel, not
+  // a valid step — must never be passed to otplib's afterTimeStep as-is).
+  totpLastUsedStep: {
+    type: Number,
+    select: false,
+    default: -1
+  },
+  // 10 single-use recovery codes, bcrypt-hashed, generated once at
+  // enrollment and replaced wholesale on re-enrollment.
+  totpBackupCodes: {
+    type: [{
+      codeHash: { type: String, required: true },
+      usedAt: { type: Date, default: null }
+    }],
+    select: false,
+    default: []
+  },
+  // Enrollment-in-progress state — separate from the committed fields above
+  // so a half-finished or abandoned enrollment can never lock out the real
+  // superadmin (totpEnabled only flips once a live code has been proven).
+  totpPendingSecretEncrypted: {
+    type: String,
+    select: false
+  },
+  totpEnrollToken: {
+    type: String,
+    select: false
+  },
+  totpEnrollTokenExpire: {
+    type: Date,
+    select: false
+  },
+  // Re-enrollment (lost/new phone) on an already-active account — its own
+  // token/state so it never overlaps first-time enrollment.
+  totpReenrollToken: {
+    type: String,
+    select: false
+  },
+  totpReenrollTokenExpire: {
+    type: Date,
     select: false
   },
   // Bumped whenever the password changes; any JWT issued before this

@@ -1,32 +1,35 @@
-export const isGreenApiConfigured = () =>
-  Boolean(
-    process.env.GREEN_API_INSTANCE_ID &&
-    process.env.GREEN_API_API_TOKEN &&
-    !process.env.GREEN_API_INSTANCE_ID.includes('xxxx')
-  );
+const isOpenWaConfigured = () =>
+  process.env.OPENWA_BASE_URL && process.env.OPENWA_API_KEY && process.env.OPENWA_SESSION_ID;
 
-export const sendWhatsAppOtp = async (phone, otp) => {
-  if (!isGreenApiConfigured()) return { sent: false };
+// 03XXXXXXXXX -> 92XXXXXXXXX@c.us
+const toWhatsAppChatId = (normalizedPhone) => `92${normalizedPhone.slice(1)}@c.us`;
 
-  const intlPhone = phone.startsWith('0') ? `92${phone.slice(1)}` : phone;
-  const chatId = `${intlPhone}@c.us`;
-  const message = `Your AgriGuard Punjab verification code is: *${otp}*\n\nThis code expires in 10 minutes. Do not share it with anyone.`;
-
+const sendWhatsAppOtp = async (normalizedPhone, otp) => {
+  const url = `${process.env.OPENWA_BASE_URL}/api/sessions/${process.env.OPENWA_SESSION_ID}/messages/send-text`;
   try {
-    const url = `https://api.green-api.com/waInstance${process.env.GREEN_API_INSTANCE_ID}/sendMessage/${process.env.GREEN_API_API_TOKEN}`;
-    const res = await fetch(url, {
+    const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chatId, message })
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': process.env.OPENWA_API_KEY
+      },
+      body: JSON.stringify({
+        chatId: toWhatsAppChatId(normalizedPhone),
+        text: `Your AgriGuard Punjab verification code is ${otp}. It expires in 10 minutes.`
+      })
     });
 
-    if (!res.ok) {
-      console.error('Green API send failed:', res.status, await res.text());
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      console.warn(`[open-wa] send-text failed (${response.status}): ${body}`);
       return { sent: false };
     }
+
     return { sent: true };
-  } catch (error) {
-    console.error('Green API send error:', error.message);
+  } catch (err) {
+    console.warn(`[open-wa] send-text request error: ${err.message}`);
     return { sent: false };
   }
 };
+
+export { isOpenWaConfigured, sendWhatsAppOtp };

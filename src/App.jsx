@@ -5,7 +5,6 @@ import { useAuth } from './context/AuthContext';
 import { useToast } from './context/ToastContext';
 import { useLanguage } from './context/LanguageContext';
 import RoleSelection from './pages/RoleSelection';
-import AdminRegistration from './pages/AdminRegistration';
 import FarmerRegistration from './pages/FarmerRegistration';
 import Login from './pages/Login';
 import ForgotPassword from './pages/ForgotPassword';
@@ -20,6 +19,14 @@ import AdminLayout from './pages/admin/AdminLayout';
 import ManageFarmers from './pages/admin/ManageFarmers';
 import FarmerLayout from './pages/farmer/FarmerLayout';
 import Overview from './pages/farmer/Overview';
+import AmsLogin from './pages/ams/AmsLogin';
+import AmsEnroll from './pages/ams/AmsEnroll';
+import AcceptAdminInvite from './pages/ams/AcceptAdminInvite';
+import AmsLayout from './pages/ams/AmsLayout';
+import AmsOverview from './pages/ams/Overview';
+import ManageAdmins from './pages/ams/ManageAdmins';
+import AuditLog from './pages/ams/AuditLog';
+import AmsSettings from './pages/ams/AmsSettings';
 import './App.css';
 
 const SessionWatcher = () => {
@@ -48,9 +55,11 @@ function App() {
       <SessionWatcher />
       <Routes>
       <Route path="/" element={<RoleSelection />} />
-      <Route path="/register/admin" element={<AdminRegistration />} />
       <Route path="/register/farmer" element={<FarmerRegistration />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/ams/login" element={<AmsLogin />} />
+      <Route path="/ams/enroll" element={<AmsEnroll />} />
+      <Route path="/ams/accept-invite/:token" element={<AcceptAdminInvite />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password/:token" element={<ResetPassword />} />
       <Route path="/verify-email-pending" element={<EmailVerificationPending />} />
@@ -89,6 +98,22 @@ function App() {
         <Route path="alerts" element={<ComingSoon />} />
         <Route path="reports" element={<ComingSoon />} />
         <Route path="settings" element={<Settings />} />
+        <Route path="help" element={<ComingSoon />} />
+        <Route path="support" element={<ComingSoon />} />
+      </Route>
+
+      <Route
+        path="/ams"
+        element={
+          <ProtectedRoute role="superadmin">
+            <AmsLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<AmsOverview />} />
+        <Route path="admins" element={<ManageAdmins />} />
+        <Route path="audit" element={<AuditLog />} />
+        <Route path="settings" element={<AmsSettings />} />
         <Route path="help" element={<ComingSoon />} />
         <Route path="support" element={<ComingSoon />} />
       </Route>

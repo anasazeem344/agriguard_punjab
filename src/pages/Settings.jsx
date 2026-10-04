@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Mail, Phone, MapPin, Mountain, Lock } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Mountain, Lock, KeyRound, Copy, Check } from 'lucide-react';
 import axiosClient from '../api/axiosClient';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
@@ -15,11 +15,13 @@ const Settings = () => {
   const { user, updateUser, logout } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const isFarmer = user?.role === 'farmer';
   const isAdmin = user?.role === 'admin';
 
   const [profile, setProfile] = useState({
-    fullName: '', email: '', phone: '', province: '', district: '', farmArea: '', accessCode: ''
+    fullName: '', email: '', phone: '', province: '', district: '', farmArea: '', linkCode: ''
   });
+  const [codeCopied, setCodeCopied] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState(null);
@@ -68,31 +70,17 @@ const Settings = () => {
     if (!isValidEmailFormat(profile.email || '')) {
       return setProfileError(t.errorEmail);
     }
-    if (!isAdmin && !isValidPhoneFormat(profile.phone || '')) {
+    if (isFarmer && !isValidPhoneFormat(profile.phone || '')) {
       return setProfileError(t.errorPhone);
     }
 
     try {
       setProfileSaving(true);
-      const payload = isAdmin
-        ? { fullName: profile.fullName, email: profile.email }
-        : { fullName: profile.fullName, phone: profile.phone, email: profile.email, province: profile.province, district: profile.district, farmArea: profile.farmArea };
+      const payload = isFarmer
+        ? { fullName: profile.fullName, phone: profile.phone, email: profile.email, province: profile.province, district: profile.district, farmArea: profile.farmArea }
+        : { fullName: profile.fullName, email: profile.email };
       const res = await axiosClient.put('/users/me', payload);
       updateUser({ ...user, fullName: profile.fullName, email: profile.email, phone: profile.phone });
-
-      if (res.data.requiresVerification && res.data.verificationChannel === 'phone') {
-        navigate('/verify-phone-pending', {
-          state: { phone: res.data.phone || profile.phone, channel: res.data.channel || 'whatsapp', pendingToken: res.data.pendingToken, devOtp: res.data.devOtp }
-        });
-        return;
-      }
-      if (res.data.requiresVerification && res.data.verificationChannel === 'email') {
-        navigate('/verify-email-pending', {
-          state: { email: profile.email, devVerificationUrl: res.data.devVerificationUrl }
-        });
-        return;
-      }
-
       setProfileMessage(res.data.message || t.profileUpdateSuccess);
     } catch (err) {
       setProfileError(err.response?.data?.message || t.errorGeneric);
@@ -184,7 +172,7 @@ const Settings = () => {
             />
           </div>
 
-          {!isAdmin && (
+          {isFarmer && (
             <>
               <div className="form-group">
                 <span className="input-icon-left" aria-hidden="true"><Phone size={18} /></span>
@@ -231,12 +219,12 @@ const Settings = () => {
             </>
           )}
 
-          {isAdmin && profile.accessCode && (
+          {isAdmin && profile.district && (
             <div className="form-group">
-              <span className="input-icon-left" aria-hidden="true"><Lock size={18} /></span>
+              <span className="input-icon-left" aria-hidden="true"><MapPin size={18} /></span>
               <input
-                id="settings-accesscode-input" type="text" className="form-input access-code-field"
-                value={profile.accessCode} disabled readOnly
+                id="settings-district-input" type="text" className="form-input"
+                value={profile.district} disabled readOnly title="Assigned by the superadmin"
               />
             </div>
           )}
@@ -246,6 +234,34 @@ const Settings = () => {
           </button>
         </form>
       </section>
+
+      {isAdmin && (
+        <section className="dashboard-card">
+          <div className="dashboard-card-header">
+            <div>
+              <h2>{t.adminCodeSection}</h2>
+              <p className="dashboard-card-subtext">{t.adminCodeSectionDesc}</p>
+            </div>
+          </div>
+          <div className="form-group">
+            <span className="input-icon-left" aria-hidden="true"><KeyRound size={18} /></span>
+            <input
+              id="settings-admin-code-input" type="text" dir="ltr"
+              className="form-input" value={profile.linkCode || ''} disabled readOnly
+            />
+            <button
+              id="settings-copy-admin-code-btn" type="button" className="input-icon-right"
+              aria-label={t.copyAdminCode}
+              onClick={async () => {
+                try { await navigator.clipboard.writeText(profile.linkCode || ''); } catch { /* clipboard unavailable */ }
+                setCodeCopied(true);
+              }}
+            >
+              {codeCopied ? <Check size={18} /> : <Copy size={18} />}
+            </button>
+          </div>
+        </section>
+      )}
 
       <section className="dashboard-card">
         <div className="dashboard-card-header">

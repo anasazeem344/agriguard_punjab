@@ -24,6 +24,13 @@ const farmerProfileSchema = new mongoose.Schema({
     required: [true, 'Farm area is required'],
     min: [0.1, 'Farm area must be greater than 0'],
     max: [100000, 'Farm area cannot exceed 100,000 acres']
+  },
+  // The admin this farmer linked to at registration via the admin's code.
+  // Permanent — set once and never changed by a later code rotation.
+  linkedAdmin: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
   }
 });
 

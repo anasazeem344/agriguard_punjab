@@ -38,7 +38,7 @@ const RoleSelection = () => {
           <div
             id="select-admin-card"
             className="role-card admin"
-            onClick={() => navigate('/register/admin')}
+            onClick={() => navigate('/login')}
           >
             <div className="role-card-decorator" aria-hidden="true" />
             <div className="role-card-icon-wrapper" aria-hidden="true">

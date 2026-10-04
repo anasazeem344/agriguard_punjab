@@ -1,6 +1,6 @@
 import crypto from 'crypto';
-import { isGreenApiConfigured, sendWhatsAppOtp } from './whatsapp.js';
 import { sendEmail } from './sendEmail.js';
+import { isOpenWaConfigured, sendWhatsAppOtp } from './whatsapp.js';
 
 const OTP_EXPIRY_MS = 10 * 60 * 1000;           // 10 minutes
 const PENDING_TOKEN_EXPIRY_MS = 15 * 60 * 1000; // 15 minutes
@@ -52,10 +52,11 @@ export const issueOtp = async (user, channel = 'whatsapp') => {
     const { sent } = await sendEmailOtp(user, otp);
     if (!sent) devOtp = otp; // email not configured — show on screen
   } else {
-    if (isGreenApiConfigured()) {
-      await sendWhatsAppOtp(user.phone, otp);
+    if (isOpenWaConfigured()) {
+      const { sent } = await sendWhatsAppOtp(user.phone, otp);
+      if (!sent) devOtp = otp; // open-wa not reachable/session not ready — show on screen
     } else {
-      devOtp = otp; // Green API not configured — show on screen
+      devOtp = otp; // open-wa not configured — show on screen
     }
   }
 

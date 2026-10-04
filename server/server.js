@@ -7,12 +7,20 @@ import mongoSanitize from 'express-mongo-sanitize';
 import connectDB from './config/db.js';
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
+import amsRoutes from './routes/amsRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
 
 dotenv.config();
 
 // Fail fast on missing secrets — silent fallbacks are how credentials leak.
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET.includes('xxxx')) {
   console.error('FATAL: JWT_SECRET is not set in server/.env. Refusing to start.');
+  process.exit(1);
+}
+
+if (!process.env.TOTP_ENCRYPTION_KEY || !/^[0-9a-f]{64}$/i.test(process.env.TOTP_ENCRYPTION_KEY)) {
+  console.error('FATAL: TOTP_ENCRYPTION_KEY must be a 64-character hex string (32 bytes) in server/.env. Refusing to start.');
+  console.error('Generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"');
   process.exit(1);
 }
 
@@ -72,6 +80,8 @@ app.get('/api/status', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/ams', amsRoutes);
+app.use('/api/admin', adminRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err.stack);

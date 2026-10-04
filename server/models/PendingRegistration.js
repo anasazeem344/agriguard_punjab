@@ -9,6 +9,9 @@ const pendingRegistrationSchema = new mongoose.Schema(
     province:  { type: String, required: true },
     district:  { type: String, required: true },
     farmArea:  { type: Number, required: true },
+    // Resolved from the admin code at registration time, copied onto the
+    // real FarmerProfile once phone verification completes.
+    linkedAdmin: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 
     verificationChannel: {
       type: String,

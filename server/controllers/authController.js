@@ -1,8 +1,8 @@
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 import User from '../models/User.js';
-import AdminProfile from '../models/AdminProfile.js';
 import FarmerProfile from '../models/FarmerProfile.js';
+import AdminProfile from '../models/AdminProfile.js';
 import PendingRegistration from '../models/PendingRegistration.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -11,6 +11,9 @@ import { isDbReady } from '../config/db.js';
 import { isNonEmptyString, isValidEmail, normalizePhone, isPositiveNumber, isValidName, isStrongPassword } from '../utils/validators.js';
 import { issueVerificationEmail } from '../utils/verificationEmail.js';
 import { issueOtp, matchesOtp, MAX_OTP_ATTEMPTS } from '../utils/phoneVerification.js';
+import { verifyAndConsumeCode } from '../utils/totpAuth.js';
+import { issueEnrollToken } from './amsController.js';
+import AuditLog from '../models/AuditLog.js';
 
 const generateToken = (userId, role) => {
   return jwt.sign(
@@ -23,71 +26,6 @@ const generateToken = (userId, role) => {
 const dbUnavailableResponse = (res) =>
   res.status(503).json({ message: 'Database is temporarily unavailable. Please try again shortly.' });
 
-// @desc    Register Admin
-// @route   POST /api/auth/register/admin
-// @access  Public
-export const registerAdmin = async (req, res) => {
-  try {
-    if (!isDbReady()) return dbUnavailableResponse(res);
-
-    const { fullName, email, accessCode, password } = req.body;
-
-    if (!isValidName(fullName) || !isValidEmail(email) || !isNonEmptyString(accessCode) || !isStrongPassword(password)) {
-      return res.status(400).json({ message: 'All fields are required and must be valid. Password must be strong (8+ chars, uppercase, lowercase, number, special char).' });
-    }
-
-    const expectedAccessCode = process.env.ADMIN_ACCESS_CODE;
-    if (!expectedAccessCode || accessCode !== expectedAccessCode) {
-      return res.status(403).json({ message: 'Invalid admin access code' });
-    }
-
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
-    if (existingUser) {
-      return res.status(400).json({ message: 'An account with this official email already exists' });
-    }
-
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    const session = await mongoose.startSession();
-    let user;
-    try {
-      await session.withTransaction(async () => {
-        user = await User.create([{
-          fullName,
-          email,
-          password: hashedPassword,
-          role: 'admin'
-        }], { session }).then((docs) => docs[0]);
-
-        await AdminProfile.create([{
-          user: user._id,
-          accessCode
-        }], { session });
-      });
-    } finally {
-      await session.endSession();
-    }
-
-    const { mocked, verifyUrl } = await issueVerificationEmail(user);
-
-    res.status(201).json({
-      success: true,
-      requiresVerification: true,
-      message: 'Registration successful. Please verify your email to activate your account.',
-      email: user.email,
-      ...(mocked && { devVerificationUrl: verifyUrl })
-    });
-
-  } catch (error) {
-    if (error.code === 11000) {
-      return res.status(400).json({ message: 'An account with this official email already exists' });
-    }
-    console.error('Error in registerAdmin:', error);
-    res.status(500).json({ message: 'Server error, please try again later' });
-  }
-};
-
 // @desc    Register Farmer
 // @route   POST /api/auth/register/farmer
 // @access  Public
@@ -95,13 +33,24 @@ export const registerFarmer = async (req, res) => {
   try {
     if (!isDbReady()) return dbUnavailableResponse(res);
 
-    const { fullName, phone, email, province, district, farmArea, password, verificationChannel } = req.body;
+    const { fullName, phone, email, province, district, farmArea, password, verificationChannel, adminCode } = req.body;
     const channel = verificationChannel === 'email' ? 'email' : 'whatsapp';
 
     const normalizedPhone = normalizePhone(phone);
     if (!isValidName(fullName) || !normalizedPhone || !isValidEmail(email) || !isNonEmptyString(province) ||
-      !isNonEmptyString(district) || !isPositiveNumber(farmArea) || !isStrongPassword(password)) {
+      !isNonEmptyString(district) || !isPositiveNumber(farmArea) || !isStrongPassword(password) || !isNonEmptyString(adminCode)) {
       return res.status(400).json({ message: 'All fields are required. Password must be strong (8+ chars, uppercase, lowercase, number, special char).' });
+    }
+
+    // The admin code links this farmer to a specific admin — no match (wrong
+    // code, or that admin suspended/removed) gets one generic message, same
+    // information-hiding shape used for login errors elsewhere.
+    const adminProfile = await AdminProfile.findOne({ linkCode: adminCode.trim().toUpperCase() });
+    const linkedAdminUser = adminProfile
+      ? await User.findOne({ _id: adminProfile.user, role: 'admin', status: 'active' })
+      : null;
+    if (!linkedAdminUser) {
+      return res.status(400).json({ message: 'Invalid admin code. Please check with your admin and try again.' });
     }
 
     // Reject if a fully-verified account already holds this phone or email.
@@ -130,7 +79,8 @@ export const registerFarmer = async (req, res) => {
       password: hashedPassword,
       province,
       district,
-      farmArea: Number(farmArea)
+      farmArea: Number(farmArea),
+      linkedAdmin: linkedAdminUser._id
     });
 
     const { otp, pendingToken } = await issueOtp(pending, channel);
@@ -170,7 +120,7 @@ export const loginUser = async (req, res) => {
     const isEmail = identifier.includes('@');
     const normalizedId = isEmail ? identifier.toLowerCase() : (normalizePhone(identifier) || identifier);
     const query = isEmail ? { email: normalizedId } : { phone: normalizedId };
-    const user = await User.findOne(query);
+    const user = await User.findOne(query).select('+totpSecretEncrypted +totpBackupCodes +totpLastUsedStep');
 
     if (!user) {
       // Check if a pending (unverified) registration exists for this identifier.
@@ -192,6 +142,18 @@ export const loginUser = async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
+    // Superadmin accounts never authenticate here — this endpoint has no
+    // TOTP step, so letting it through would bypass 2FA entirely. Only
+    // reachable after a correct password match, so this doesn't leak
+    // anything beyond what the submitter already proved they know.
+    if (user.role === 'superadmin') {
+      return res.status(403).json({ message: 'Superadmin accounts must log in at /ams/login.' });
+    }
+
+    if (user.status === 'suspended') {
+      return res.status(403).json({ message: 'This account has been suspended.' });
+    }
+
     if (user.role === 'admin' && !user.isEmailVerified) {
       return res.status(403).json({
         message: 'Please verify your email before logging in.',
@@ -211,7 +173,36 @@ export const loginUser = async (req, res) => {
       });
     }
 
+    // New admins are TOTP-enrolled during invite acceptance (see
+    // amsInviteAcceptConfirm), but an admin created before that existed has
+    // no secret yet — route them into the same enrollment amsLogin uses for
+    // superadmin's first login, rather than locking them out.
+    let totpVia = null;
+    if (user.role === 'admin' && !user.totpEnabled) {
+      const enrollToken = await issueEnrollToken(user);
+      return res.status(200).json({ success: true, phase: 'enroll', identifier: user.email, enrollToken });
+    }
+    if (user.role === 'admin') {
+      const { code } = req.body;
+      if (!isNonEmptyString(code)) {
+        return res.status(200).json({ success: true, phase: 'totp' });
+      }
+      const { consumed, via } = await verifyAndConsumeCode(user, code);
+      if (!consumed) {
+        return res.status(401).json({ message: 'Invalid credentials' });
+      }
+      totpVia = via;
+    }
+
     const token = generateToken(user._id, user.role);
+
+    if (user.role === 'admin') {
+      await AuditLog.create({
+        actorId: user._id,
+        actorName: user.fullName,
+        kind: totpVia === 'backup' ? 'admin_login_backup_code_used' : 'admin_login'
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -364,8 +355,12 @@ export const forgotPassword = async (req, res) => {
       });
     }
 
-    // Email path: send reset link.
-    if (!user || !user.email) {
+    // Email path: send reset link. Superadmin is deliberately excluded —
+    // by design there is no self-service password recovery for that
+    // account via any path outside AMS itself (see server/AMS_SETUP.md).
+    // Treated identically to a non-existent account, same generic message,
+    // so this doesn't become a way to confirm the superadmin's email either.
+    if (!user || !user.email || user.role === 'superadmin') {
       return res.status(200).json({ success: true, message: genericMessage });
     }
 
@@ -504,7 +499,8 @@ export const completePhoneVerification = async (req, res) => {
           user:     user._id,
           province: pending.province,
           district: pending.district,
-          farmArea: pending.farmArea
+          farmArea: pending.farmArea,
+          linkedAdmin: pending.linkedAdmin
         }], { session });
       });
     } finally {

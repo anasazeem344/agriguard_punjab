@@ -411,6 +411,14 @@ body::after {
   text-align: left;
 }
 
+.field-hint {
+  color: var(--text-secondary, #6b7280);
+  font-size: 12px;
+  margin-top: 4px;
+  padding-left: 4px;
+  text-align: left;
+}
+
 /* RTL / Urdu Language specific adjustments */
 .rtl-mode {
   direction: rtl;

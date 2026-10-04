@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { User, Phone, Mail, MapPin, ChevronDown, Mountain, Lock, Eye, EyeOff, ArrowRight, MessageCircle } from 'lucide-react';
+import { User, Phone, Mail, MapPin, ChevronDown, Mountain, KeyRound, Lock, Eye, EyeOff, ArrowRight, MessageCircle } from 'lucide-react';
 import axiosClient from '../api/axiosClient';
 import { useLanguage } from '../context/LanguageContext';
 import AuthHeader from '../components/AuthHeader';
@@ -15,7 +15,7 @@ const FarmerRegistration = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [farmerData, setFarmerData] = useState({
-    fullName: '', phone: '', email: '', province: '', district: '', farmArea: '', password: '', confirmPassword: ''
+    fullName: '', phone: '', email: '', province: '', district: '', farmArea: '', adminCode: '', password: '', confirmPassword: ''
   });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -65,6 +65,8 @@ const FarmerRegistration = () => {
       newErrors.farmArea = t.errorFarmAreaRange;
     }
 
+    if (!farmerData.adminCode.trim()) newErrors.adminCode = t.errorRequired;
+
     if (!farmerData.password) {
       newErrors.password = t.errorRequired;
     } else if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,128}$/.test(farmerData.password)) {
@@ -93,6 +95,7 @@ const FarmerRegistration = () => {
         province: farmerData.province,
         district: farmerData.district,
         farmArea: farmerData.farmArea,
+        adminCode: farmerData.adminCode,
         password: farmerData.password,
         verificationChannel
       });
@@ -217,6 +220,18 @@ const FarmerRegistration = () => {
               aria-required="true" aria-invalid={errors.farmArea ? 'true' : 'false'}
             />
             {errors.farmArea && <p className="error-message" role="alert">{errors.farmArea}</p>}
+          </div>
+
+          <div className="form-group">
+            <span className="input-icon-left" aria-hidden="true"><KeyRound size={18} /></span>
+            <input
+              id="farmer-admincode-input" type="text" name="adminCode" placeholder={t.placeholderAdminCode}
+              className={`form-input ${errors.adminCode ? 'has-error' : ''}`}
+              value={farmerData.adminCode} onChange={handleChange} required
+              aria-required="true" aria-invalid={errors.adminCode ? 'true' : 'false'}
+            />
+            {errors.adminCode && <p className="error-message" role="alert">{errors.adminCode}</p>}
+            {!errors.adminCode && <p className="field-hint">{t.adminCodeHelp}</p>}
           </div>
 
           <div className="form-group">

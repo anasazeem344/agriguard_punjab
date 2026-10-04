@@ -1,13 +1,11 @@
-import { MoreVertical, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Ban, RotateCcw, Trash2, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
+import axiosClient from '../../api/axiosClient';
 import { useLanguage } from '../../context/LanguageContext';
 import { useToast } from '../../context/ToastContext';
 
-const sampleFarmers = [
-  { initials: 'AM', name: 'Ahmed Malik', location: 'Sector Alpha, Punjab Hub', sensors: 12, lastActivity: '2 hrs ago', status: 'Active' },
-  { initials: 'FA', name: 'Fatima Ali', location: 'Sector Delta, Sindh Belt', sensors: 8, lastActivity: '5 hrs ago', status: 'Active' },
-  { initials: 'TK', name: 'Tariq Khan', location: 'Sector Beta, KPK Highlands', sensors: 4, lastActivity: '3 days ago', status: 'Inactive' },
-  { initials: 'ZB', name: 'Zainab Bibi', location: 'Sector Gamma, Balochistan Plains', sensors: 15, lastActivity: '10 mins ago', status: 'Active' }
-];
+const initials = (name) =>
+  (name || '').trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() || '').join('');
 
 const diseaseStats = [
   { sector: 'Sector Alpha', wheatRust: 30, blight: 55, powderyMildew: 20 },
@@ -16,10 +14,83 @@ const diseaseStats = [
   { sector: 'Sector Delta', wheatRust: 45, blight: 30, powderyMildew: 60 }
 ];
 
+const PAGE_SIZE = 10;
+
 const ManageFarmers = () => {
   const { t } = useLanguage();
   const { showToast } = useToast();
   const comingSoon = () => showToast(t.comingSoonToast);
+
+  const [farmers, setFarmers] = useState([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [actionLoadingId, setActionLoadingId] = useState(null);
+
+  const fetchFarmers = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await axiosClient.get('/admin/farmers', { params: { page, limit: PAGE_SIZE } });
+      setFarmers(res.data.farmers);
+      setTotal(res.data.total);
+      setHasMore(res.data.hasMore);
+    } catch {
+      showToast(t.errorGeneric, 'error');
+    } finally {
+      setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
+
+  useEffect(() => {
+    fetchFarmers();
+  }, [fetchFarmers]);
+
+  const handleSuspend = async (farmer) => {
+    if (!window.confirm(t.confirmSuspendFarmer)) return;
+    try {
+      setActionLoadingId(farmer.id);
+      await axiosClient.patch(`/admin/farmers/${farmer.id}/suspend`);
+      showToast(t.farmerSuspended, 'success');
+      fetchFarmers();
+    } catch (err) {
+      showToast(err.response?.data?.message || t.errorGeneric, 'error');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleReactivate = async (farmer) => {
+    if (!window.confirm(t.confirmReactivateFarmer)) return;
+    try {
+      setActionLoadingId(farmer.id);
+      await axiosClient.patch(`/admin/farmers/${farmer.id}/reactivate`);
+      showToast(t.farmerReactivated, 'success');
+      fetchFarmers();
+    } catch (err) {
+      showToast(err.response?.data?.message || t.errorGeneric, 'error');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleRemove = async (farmer) => {
+    if (!window.confirm(t.confirmRemoveFarmer)) return;
+    try {
+      setActionLoadingId(farmer.id);
+      await axiosClient.delete(`/admin/farmers/${farmer.id}`);
+      showToast(t.farmerRemoved, 'success');
+      fetchFarmers();
+    } catch (err) {
+      showToast(err.response?.data?.message || t.errorGeneric, 'error');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const rangeStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const rangeEnd = Math.min(page * PAGE_SIZE, total);
 
   return (
     <>
@@ -31,7 +102,6 @@ const ManageFarmers = () => {
       <section className="dashboard-card">
         <div className="dashboard-card-header">
           <h2>{t.registeredFarmers}</h2>
-          <button className="primary-pill-btn" type="button" onClick={comingSoon}>{t.addFarmer}</button>
         </div>
 
         <div className="table-scroll">
@@ -47,24 +117,44 @@ const ManageFarmers = () => {
               </tr>
             </thead>
             <tbody>
-              {sampleFarmers.map((farmer) => (
-                <tr key={farmer.name}>
+              {!loading && farmers.length === 0 && (
+                <tr><td colSpan={6} style={{ textAlign: 'center' }}>{t.noFarmersYet}</td></tr>
+              )}
+              {farmers.map((farmer) => (
+                <tr key={farmer.id}>
                   <td>
                     <div className="farmer-name-cell">
-                      <span className="farmer-avatar">{farmer.initials}</span>
-                      <span>{farmer.name}</span>
+                      <span className="farmer-avatar">{initials(farmer.fullName)}</span>
+                      <span>{farmer.fullName}</span>
                     </div>
                   </td>
                   <td>{farmer.location}</td>
                   <td className="num">{farmer.sensors}</td>
-                  <td>{farmer.lastActivity}</td>
+                  <td>{farmer.lastActivity || '—'}</td>
                   <td>
                     <span className={`status-badge ${farmer.status === 'Active' ? 'active' : 'inactive'}`}>
                       {farmer.status}
                     </span>
                   </td>
                   <td className="num">
-                    <button className="icon-only-btn" aria-label="More actions" onClick={comingSoon}><MoreVertical size={16} /></button>
+                    {farmer.status === 'Active' ? (
+                      <button
+                        className="icon-only-btn" aria-label="Suspend" title="Suspend"
+                        disabled={actionLoadingId === farmer.id}
+                        onClick={() => handleSuspend(farmer)}
+                      ><Ban size={16} /></button>
+                    ) : (
+                      <button
+                        className="icon-only-btn" aria-label="Reactivate" title="Reactivate"
+                        disabled={actionLoadingId === farmer.id}
+                        onClick={() => handleReactivate(farmer)}
+                      ><RotateCcw size={16} /></button>
+                    )}
+                    <button
+                      className="icon-only-btn" aria-label="Remove" title="Remove"
+                      disabled={actionLoadingId === farmer.id}
+                      onClick={() => handleRemove(farmer)}
+                    ><Trash2 size={16} /></button>
                   </td>
                 </tr>
               ))}
@@ -73,10 +163,10 @@ const ManageFarmers = () => {
         </div>
 
         <div className="table-pagination">
-          <span>Showing 1-4 of 128 Farmers</span>
+          <span>{t.showingFarmersRange.replace('{start}', rangeStart).replace('{end}', rangeEnd).replace('{total}', total)}</span>
           <div className="pagination-controls">
-            <button className="icon-only-btn" aria-label="Previous page" onClick={comingSoon}><ChevronLeft size={16} /></button>
-            <button className="icon-only-btn" aria-label="Next page" onClick={comingSoon}><ChevronRight size={16} /></button>
+            <button className="icon-only-btn" aria-label="Previous page" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}><ChevronLeft size={16} /></button>
+            <button className="icon-only-btn" aria-label="Next page" disabled={!hasMore} onClick={() => setPage((p) => p + 1)}><ChevronRight size={16} /></button>
           </div>
         </div>
       </section>

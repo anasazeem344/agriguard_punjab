@@ -1,7 +1,6 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import {
-  registerAdmin,
   registerFarmer,
   loginUser,
   verifyEmail,
@@ -28,7 +27,6 @@ const verifyOtpLimiter     = makeLimiter(15 * 60 * 1000, 10, 'Too many verificat
 const resendOtpLimiter     = makeLimiter(60 * 60 * 1000, 5,  'Too many requests. Please try again in an hour.');
 const verifyForgotOtpLimiter = makeLimiter(15 * 60 * 1000, 10, 'Too many attempts. Please try again in 15 minutes.');
 
-router.post('/register/admin',              registerLimiter,       registerAdmin);
 router.post('/register/farmer',             registerLimiter,       registerFarmer);
 router.post('/login',                       loginLimiter,          loginUser);
 router.post('/verify-email/:token',         verifyEmailLimiter,    verifyEmail);

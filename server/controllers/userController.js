@@ -18,9 +18,16 @@ export const getMe = async (req, res) => {
     if (!isDbReady()) return dbUnavailableResponse(res);
 
     const user = req.user;
-    const profile = user.role === 'admin'
-      ? await AdminProfile.findOne({ user: user._id })
-      : await FarmerProfile.findOne({ user: user._id });
+    let profileFields = {};
+    if (user.role === 'admin') {
+      const profile = await AdminProfile.findOne({ user: user._id });
+      profileFields = { district: profile?.district, linkCode: profile?.linkCode };
+    } else if (user.role === 'farmer') {
+      const profile = await FarmerProfile.findOne({ user: user._id });
+      profileFields = { province: profile?.province, district: profile?.district, farmArea: profile?.farmArea };
+    } else if (user.role === 'superadmin') {
+      profileFields = { totpEnrolledAt: user.totpEnrolledAt };
+    }
 
     res.status(200).json({
       success: true,
@@ -32,9 +39,7 @@ export const getMe = async (req, res) => {
         role: user.role,
         isEmailVerified: user.isEmailVerified,
         isPhoneVerified: user.isPhoneVerified,
-        ...(user.role === 'admin'
-          ? { accessCode: profile?.accessCode }
-          : { province: profile?.province, district: profile?.district, farmArea: profile?.farmArea })
+        ...profileFields
       }
     });
   } catch (error) {
@@ -67,7 +72,10 @@ export const updateMe = async (req, res) => {
     // Phone is the farmer's verified identity — it cannot be changed after registration.
     if (user.role === 'farmer' && phone !== undefined) {
       const normalizedPhone = normalizePhone(phone);
-      if (normalizedPhone && normalizedPhone !== user.phone) {
+      if (!normalizedPhone) {
+        return res.status(400).json({ message: 'Please enter a valid Pakistani mobile number' });
+      }
+      if (normalizedPhone !== user.phone) {
         return res.status(400).json({ message: 'Phone number cannot be changed after registration' });
       }
     }
